@@ -1,0 +1,25 @@
+mode: assess
+title: Example Assessment
+client: Example Corp
+environment: Production
+classification: TLP:AMBER
+instructions: >
+  Turn the supplied screenshots, scan outputs, and notes into a draft corporate assessment report.
+template: ./templates/default/assessment.md.tmpl
+artifacts:
+  - ./artifacts
+ai:
+  provider: ollama
+  endpoint: http://127.0.0.1:11434
+  model: gemma4:26b
+  fallback_model: gemma4:e4b
+  temperature: 0.2
+  max_tokens: 2048
+output:
+  formats:
+    - markdown
+    - json
+    - pdf
+  project_dir: ./project
+  redaction_rules:
+    - '(?m)\b\d{1,3}(?:\.\d{1,3}){3}\b'

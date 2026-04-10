@@ -1,0 +1,20 @@
+# {{ .Config.Title }}
+
+**Client:** {{ .Config.Client }}
+**Environment:** {{ .Config.Environment }}
+**Classification:** {{ .Config.Classification }}
+
+## Executive Summary
+{{ .Draft.ExecutiveSummary }}
+
+## Findings
+{{- range .Draft.Findings }}
+### {{ .Title }} ({{ .Severity }})
+{{ .Description }}
+
+**Impact:** {{ .Impact }}
+**Remediation:** {{ .Remediation }}
+**Evidence:** {{ join .EvidenceRefs ", " }}
+**Observations:** {{ join .ObservationIDs ", " }}
+
+{{- end }}

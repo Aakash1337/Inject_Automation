@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/injectctl/job.schema.json",
+  "title": "injectctl job manifest",
+  "type": "object",
+  "required": ["mode", "instructions"],
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["assess", "inject"]
+    },
+    "title": {
+      "type": "string"
+    },
+    "client": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "classification": {
+      "type": "string"
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "template": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "const": "ollama"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "fallback_model": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "max_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "formats": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["markdown", "json", "pdf"]
+          }
+        },
+        "project_dir": {
+          "type": "string"
+        },
+        "redaction_rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

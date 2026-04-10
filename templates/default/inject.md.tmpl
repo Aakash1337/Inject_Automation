@@ -1,0 +1,23 @@
+# {{ .Config.Title }}
+
+**Client:** {{ .Config.Client }}
+**Environment:** {{ .Config.Environment }}
+**Classification:** {{ .Config.Classification }}
+
+## Scenario Summary
+{{ .Draft.ScenarioSummary }}
+
+## Injects
+{{- range .Draft.Items }}
+### {{ .Title }}
+**Audience:** {{ .Audience }}
+**Channel:** {{ .Channel }}
+**Trigger:** {{ .Trigger }}
+**Expected Action:** {{ .ExpectedAction }}
+
+{{ .Body }}
+
+**Evidence:** {{ join .EvidenceRefs ", " }}
+**Observations:** {{ join .ObservationIDs ", " }}
+
+{{- end }}

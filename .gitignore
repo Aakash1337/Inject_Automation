@@ -1,0 +1,7 @@
+out/
+project/
+dist/
+bin/
+*.exe
+*.test
+*.out
