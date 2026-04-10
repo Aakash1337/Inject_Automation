@@ -12,8 +12,10 @@ import (
 	"injectctl/internal/ai/ollama"
 	"injectctl/internal/assess"
 	"injectctl/internal/core"
+	"injectctl/internal/evidence"
 	"injectctl/internal/ingest"
 	"injectctl/internal/inject"
+	evidencerender "injectctl/internal/render/evidence"
 	jsonrender "injectctl/internal/render/json"
 	markdownrender "injectctl/internal/render/markdown"
 	pdfrender "injectctl/internal/render/pdf"
@@ -84,6 +86,19 @@ func Run(ctx context.Context, opts Options) error {
 }
 
 func writeOutputs(outDir string, formats []string, assessResult *core.AssessmentResult, injectResult *core.InjectResult, templatePath string) error {
+	var run core.RunRecord
+	var artifacts []core.Artifact
+	var observations []core.Observation
+	if assessResult != nil {
+		run = assessResult.Run
+		artifacts = assessResult.Artifacts
+		observations = assessResult.Observations
+	} else {
+		run = injectResult.Run
+		artifacts = injectResult.Artifacts
+		observations = injectResult.Observations
+	}
+
 	for _, format := range formats {
 		switch strings.ToLower(format) {
 		case "json":
@@ -119,6 +134,13 @@ func writeOutputs(outDir string, formats []string, assessResult *core.Assessment
 		default:
 			return fmt.Errorf("unsupported output format: %s", format)
 		}
+	}
+	index := evidence.Build(run, artifacts, observations)
+	if err := evidencerender.WriteJSON(filepath.Join(outDir, "evidence-index.json"), index); err != nil {
+		return err
+	}
+	if err := evidencerender.WriteMarkdown(filepath.Join(outDir, "evidence-index.md"), index); err != nil {
+		return err
 	}
 	return nil
 }

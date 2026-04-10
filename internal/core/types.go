@@ -119,6 +119,23 @@ type ErrorReport struct {
 	Recommendations []string  `json:"recommendations,omitempty"`
 }
 
+type EvidenceIndex struct {
+	RunID   string              `json:"run_id"`
+	Mode    Mode                `json:"mode"`
+	Entries []EvidenceIndexEntry `json:"entries"`
+}
+
+type EvidenceIndexEntry struct {
+	ArtifactID    string   `json:"artifact_id"`
+	Path          string   `json:"path"`
+	Kind          string   `json:"kind"`
+	Parser        string   `json:"parser"`
+	MIME          string   `json:"mime"`
+	SHA256        string   `json:"sha256"`
+	ObservationIDs []string `json:"observation_ids,omitempty"`
+	Snippets      []string `json:"snippets,omitempty"`
+}
+
 type AssessmentDraft struct {
 	ExecutiveSummary string    `json:"executive_summary"`
 	Findings         []Finding `json:"findings"`

@@ -72,6 +72,8 @@ func TestRunAssessmentEndToEnd(t *testing.T) {
 	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "SSH exposed")
 	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "draft_ready")
 	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "executive_summary")
+	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
+	assertFileContains(t, filepath.Join(outDir, "evidence-index.md"), "Evidence Index")
 	assertFileExists(t, filepath.Join(outDir, "assessment.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "assessment-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
@@ -136,6 +138,8 @@ func TestRunInjectEndToEnd(t *testing.T) {
 	assertFileContains(t, filepath.Join(outDir, "inject.md"), "Suspicious SSH Alert")
 	assertFileContains(t, filepath.Join(outDir, "inject.md"), "draft_ready")
 	assertFileContains(t, filepath.Join(outDir, "inject.json"), "scenario_summary")
+	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
+	assertFileContains(t, filepath.Join(outDir, "evidence-index.md"), "Evidence Index")
 	assertFileExists(t, filepath.Join(outDir, "inject.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "inject-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
@@ -202,6 +206,7 @@ func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
 	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "Generation Error")
 	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "\"status\": \"evidence_only\"")
 	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "\"error_report\"")
+	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
 }
 
 func newMockOllamaServer(t *testing.T, responsePayload map[string]any) *httptest.Server {
