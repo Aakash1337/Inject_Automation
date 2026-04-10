@@ -115,6 +115,18 @@ injectctl init manifest --mode inject --out job.yaml
 
 Then edit `job.yaml` to describe your case.
 
+If you want a complete working example bundle instead of starting from scratch:
+
+```powershell
+injectctl init demo --mode assess --out .\demo
+```
+
+That creates:
+- a ready-to-run `job.yaml`
+- sample `notes.txt`
+- sample `scan.nmap`
+- a sample screenshot `terminal.png`
+
 ### 5. Run the Tool
 
 Assessment:
@@ -306,6 +318,16 @@ Example:
 injectctl init manifest --mode assess --out job.yaml
 ```
 
+### `injectctl init demo`
+
+Creates a full demo folder with sample artifacts and a starter manifest.
+
+Example:
+
+```powershell
+injectctl init demo --mode assess --out .\demo
+```
+
 ### `injectctl assess run`
 
 Builds a draft assessment report.
@@ -394,6 +416,15 @@ Best for:
 - checking which observations were linked to each artifact
 - reviewing snippets without reading the full report
 
+### Project Snapshot
+
+If `output.project_dir` is set, the project folder now also keeps:
+- the manifest snapshot
+- the full run JSON
+- `evidence-index.json`
+- `evidence-index.md`
+- `run-summary.json`
+
 ## Safety and Review Expectations
 
 This tool is meant to help analysts, not replace them.
@@ -468,6 +499,8 @@ The release script also creates:
 
 - zipped binaries
 - `sha256sums.txt`
+
+GitHub Actions also builds and uploads per-platform artifacts for each run.
 
 ## Current Limitations
 

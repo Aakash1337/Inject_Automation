@@ -81,6 +81,9 @@ func TestRunAssessmentEndToEnd(t *testing.T) {
 	assertFileExists(t, filepath.Join(outDir, "assessment.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "assessment-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
+	assertFileExists(t, filepath.Join(projectDir, "evidence-index.json"))
+	assertFileExists(t, filepath.Join(projectDir, "evidence-index.md"))
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"status\": \"draft_ready\"")
 }
 
 func TestRunInjectEndToEnd(t *testing.T) {
@@ -147,6 +150,9 @@ func TestRunInjectEndToEnd(t *testing.T) {
 	assertFileExists(t, filepath.Join(outDir, "inject.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "inject-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
+	assertFileExists(t, filepath.Join(projectDir, "evidence-index.json"))
+	assertFileExists(t, filepath.Join(projectDir, "evidence-index.md"))
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"status\": \"draft_ready\"")
 }
 
 func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {

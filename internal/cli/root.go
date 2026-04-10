@@ -10,6 +10,7 @@ import (
 
 	"injectctl/internal/config"
 	"injectctl/internal/core"
+	"injectctl/internal/demo"
 	"injectctl/internal/doctor"
 	"injectctl/internal/runner"
 	templaterender "injectctl/internal/template"
@@ -70,10 +71,10 @@ func runMode(ctx context.Context, mode core.Mode, args []string) error {
 	}
 
 	return runner.Run(ctx, runner.Options{
-		Config:      cfg,
+		Config:       cfg,
 		ManifestPath: *manifest,
-		InputPaths:  inputs,
-		OutputDir:   resolvedOut,
+		InputPaths:   inputs,
+		OutputDir:    resolvedOut,
 	})
 }
 
@@ -153,41 +154,62 @@ func runTemplate(args []string) error {
 }
 
 func runInit(args []string) error {
-	if len(args) == 0 || args[0] != "manifest" {
-		return errors.New("init requires the manifest subcommand")
+	if len(args) == 0 {
+		return errors.New("init requires the manifest or demo subcommand")
 	}
 
-	fs := flag.NewFlagSet("init manifest", flag.ContinueOnError)
-	mode := fs.String("mode", "assess", "Mode: assess or inject")
-	out := fs.String("out", "job.yaml", "Destination path")
-	if err := fs.Parse(args[1:]); err != nil {
-		return err
-	}
+	switch args[0] {
+	case "manifest":
+		fs := flag.NewFlagSet("init manifest", flag.ContinueOnError)
+		mode := fs.String("mode", "assess", "Mode: assess or inject")
+		out := fs.String("out", "job.yaml", "Destination path")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
 
-	cfg := config.DefaultConfig()
-	switch *mode {
-	case string(core.ModeAssess):
-		cfg.Mode = core.ModeAssess
-		cfg.Title = "Assessment Run"
-		cfg.Instructions = "Turn the provided evidence into a draft assessment report."
-	case string(core.ModeInject):
-		cfg.Mode = core.ModeInject
-		cfg.Title = "Exercise Inject Run"
-		cfg.Instructions = "Turn the provided evidence into a draft inject pack."
+		cfg := config.DefaultConfig()
+		switch *mode {
+		case string(core.ModeAssess):
+			cfg.Mode = core.ModeAssess
+			cfg.Title = "Assessment Run"
+			cfg.Instructions = "Turn the provided evidence into a draft assessment report."
+		case string(core.ModeInject):
+			cfg.Mode = core.ModeInject
+			cfg.Title = "Exercise Inject Run"
+			cfg.Instructions = "Turn the provided evidence into a draft inject pack."
+		default:
+			return errors.New("--mode must be assess or inject")
+		}
+		cfg.Client = "Example Corp"
+		cfg.Environment = "Production"
+		cfg.Template = "templates/default/" + string(cfg.Mode) + ".md.tmpl"
+		cfg.Artifacts = []string{"./artifacts"}
+		cfg.Output.ProjectDir = "./project"
+
+		data, err := config.MarshalYAML(cfg)
+		if err != nil {
+			return fmt.Errorf("marshal manifest: %w", err)
+		}
+		return os.WriteFile(*out, data, 0o644)
+	case "demo":
+		fs := flag.NewFlagSet("init demo", flag.ContinueOnError)
+		mode := fs.String("mode", "assess", "Mode: assess or inject")
+		out := fs.String("out", "demo", "Destination directory")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+
+		switch *mode {
+		case string(core.ModeAssess):
+			return demo.Generate(*out, core.ModeAssess)
+		case string(core.ModeInject):
+			return demo.Generate(*out, core.ModeInject)
+		default:
+			return errors.New("--mode must be assess or inject")
+		}
 	default:
-		return errors.New("--mode must be assess or inject")
+		return errors.New("init requires the manifest or demo subcommand")
 	}
-	cfg.Client = "Example Corp"
-	cfg.Environment = "Production"
-	cfg.Template = "templates/default/" + string(cfg.Mode) + ".md.tmpl"
-	cfg.Artifacts = []string{"./artifacts"}
-	cfg.Output.ProjectDir = "./project"
-
-	data, err := config.MarshalYAML(cfg)
-	if err != nil {
-		return fmt.Errorf("marshal manifest: %w", err)
-	}
-	return os.WriteFile(*out, data, 0o644)
 }
 
 func usageError() error {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"injectctl/internal/core"
+	evidencerender "injectctl/internal/render/evidence"
 )
 
 func WriteAssessment(dir, manifestPath string, result core.AssessmentResult) error {
@@ -22,6 +23,30 @@ func WriteInject(dir, manifestPath string, result core.InjectResult) error {
 		return err
 	}
 	return writeJSON(filepath.Join(dir, "inject-run.json"), result)
+}
+
+func WriteEvidenceIndex(dir string, index core.EvidenceIndex) error {
+	if err := evidencerender.WriteJSON(filepath.Join(dir, "evidence-index.json"), index); err != nil {
+		return err
+	}
+	return evidencerender.WriteMarkdown(filepath.Join(dir, "evidence-index.md"), index)
+}
+
+func WriteRunSummary(dir string, summary RunSummary) error {
+	return writeJSON(filepath.Join(dir, "run-summary.json"), summary)
+}
+
+type RunSummary struct {
+	RunID            string   `json:"run_id"`
+	Mode             string   `json:"mode"`
+	Title            string   `json:"title"`
+	Status           string   `json:"status"`
+	Model            string   `json:"model"`
+	ArtifactCount    int      `json:"artifact_count"`
+	ObservationCount int      `json:"observation_count"`
+	Warnings         []string `json:"warnings,omitempty"`
+	Errors           []string `json:"errors,omitempty"`
+	OutputFiles      []string `json:"output_files,omitempty"`
 }
 
 func snapshotManifest(dir, manifestPath string) error {

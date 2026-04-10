@@ -8,13 +8,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  test-and-build:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        goos: [windows, linux, darwin]
-        goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -22,6 +17,37 @@ jobs:
           go-version: "1.22"
       - name: Test
         run: go test ./...
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            suffix: .exe
+          - goos: windows
+            goarch: arm64
+            suffix: .exe
+          - goos: linux
+            goarch: amd64
+            suffix: ""
+          - goos: linux
+            goarch: arm64
+            suffix: ""
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
@@ -29,4 +55,11 @@ jobs:
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
-          go build -o "dist/injectctl-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/injectctl
+          output="dist/injectctl-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}"
+          go build -trimpath -o "$output" ./cmd/injectctl
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: injectctl-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error

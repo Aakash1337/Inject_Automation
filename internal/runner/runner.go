@@ -15,13 +15,13 @@ import (
 	"injectctl/internal/evidence"
 	"injectctl/internal/ingest"
 	"injectctl/internal/inject"
+	"injectctl/internal/normalize"
+	"injectctl/internal/ocr"
+	"injectctl/internal/project"
 	evidencerender "injectctl/internal/render/evidence"
 	jsonrender "injectctl/internal/render/json"
 	markdownrender "injectctl/internal/render/markdown"
 	pdfrender "injectctl/internal/render/pdf"
-	"injectctl/internal/project"
-	"injectctl/internal/normalize"
-	"injectctl/internal/ocr"
 )
 
 type Options struct {
@@ -64,10 +64,11 @@ func Run(ctx context.Context, opts Options) error {
 		result.Run.CompletedAt = time.Now().UTC()
 		result.Run.Duration = result.Run.CompletedAt.Sub(started)
 		sanitizeAssessment(result)
-		if err := writeOutputs(opts.OutputDir, opts.Config.Output.Formats, result, nil, opts.Config.Template); err != nil {
+		index := evidence.Build(result.Run, result.Artifacts, result.Observations)
+		if err := writeOutputs(opts.OutputDir, opts.Config.Output.Formats, result, nil, index, opts.Config.Template); err != nil {
 			return err
 		}
-		return persistProject(opts, result, nil)
+		return persistProject(opts, result, nil, index)
 	case core.ModeInject:
 		result, err := inject.Build(ctx, client, opts.Config, artifacts, observations, &runRecord)
 		if err != nil {
@@ -76,29 +77,17 @@ func Run(ctx context.Context, opts Options) error {
 		result.Run.CompletedAt = time.Now().UTC()
 		result.Run.Duration = result.Run.CompletedAt.Sub(started)
 		sanitizeInject(result)
-		if err := writeOutputs(opts.OutputDir, opts.Config.Output.Formats, nil, result, opts.Config.Template); err != nil {
+		index := evidence.Build(result.Run, result.Artifacts, result.Observations)
+		if err := writeOutputs(opts.OutputDir, opts.Config.Output.Formats, nil, result, index, opts.Config.Template); err != nil {
 			return err
 		}
-		return persistProject(opts, nil, result)
+		return persistProject(opts, nil, result, index)
 	default:
 		return errors.New("unsupported mode")
 	}
 }
 
-func writeOutputs(outDir string, formats []string, assessResult *core.AssessmentResult, injectResult *core.InjectResult, templatePath string) error {
-	var run core.RunRecord
-	var artifacts []core.Artifact
-	var observations []core.Observation
-	if assessResult != nil {
-		run = assessResult.Run
-		artifacts = assessResult.Artifacts
-		observations = assessResult.Observations
-	} else {
-		run = injectResult.Run
-		artifacts = injectResult.Artifacts
-		observations = injectResult.Observations
-	}
-
+func writeOutputs(outDir string, formats []string, assessResult *core.AssessmentResult, injectResult *core.InjectResult, index core.EvidenceIndex, templatePath string) error {
 	for _, format := range formats {
 		switch strings.ToLower(format) {
 		case "json":
@@ -135,7 +124,6 @@ func writeOutputs(outDir string, formats []string, assessResult *core.Assessment
 			return fmt.Errorf("unsupported output format: %s", format)
 		}
 	}
-	index := evidence.Build(run, artifacts, observations)
 	if err := evidencerender.WriteJSON(filepath.Join(outDir, "evidence-index.json"), index); err != nil {
 		return err
 	}
@@ -145,7 +133,7 @@ func writeOutputs(outDir string, formats []string, assessResult *core.Assessment
 	return nil
 }
 
-func persistProject(opts Options, assessResult *core.AssessmentResult, injectResult *core.InjectResult) error {
+func persistProject(opts Options, assessResult *core.AssessmentResult, injectResult *core.InjectResult, index core.EvidenceIndex) error {
 	if opts.Config.Output.ProjectDir == "" {
 		return nil
 	}
@@ -153,9 +141,58 @@ func persistProject(opts Options, assessResult *core.AssessmentResult, injectRes
 		return fmt.Errorf("create project directory: %w", err)
 	}
 	if assessResult != nil {
-		return project.WriteAssessment(opts.Config.Output.ProjectDir, opts.ManifestPath, *assessResult)
+		if err := project.WriteAssessment(opts.Config.Output.ProjectDir, opts.ManifestPath, *assessResult); err != nil {
+			return err
+		}
+		if err := project.WriteEvidenceIndex(opts.Config.Output.ProjectDir, index); err != nil {
+			return err
+		}
+		return project.WriteRunSummary(opts.Config.Output.ProjectDir, project.RunSummary{
+			RunID:            assessResult.Run.RunID,
+			Mode:             string(assessResult.Run.Mode),
+			Title:            assessResult.Run.Title,
+			Status:           assessResult.Status,
+			Model:            assessResult.Run.Model,
+			ArtifactCount:    len(assessResult.Artifacts),
+			ObservationCount: len(assessResult.Observations),
+			Warnings:         assessResult.Run.Warnings,
+			Errors:           assessResult.Run.Errors,
+			OutputFiles:      outputFiles(opts.Config.Mode, opts.Config.Output.Formats),
+		})
 	}
-	return project.WriteInject(opts.Config.Output.ProjectDir, opts.ManifestPath, *injectResult)
+	if err := project.WriteInject(opts.Config.Output.ProjectDir, opts.ManifestPath, *injectResult); err != nil {
+		return err
+	}
+	if err := project.WriteEvidenceIndex(opts.Config.Output.ProjectDir, index); err != nil {
+		return err
+	}
+	return project.WriteRunSummary(opts.Config.Output.ProjectDir, project.RunSummary{
+		RunID:            injectResult.Run.RunID,
+		Mode:             string(injectResult.Run.Mode),
+		Title:            injectResult.Run.Title,
+		Status:           injectResult.Status,
+		Model:            injectResult.Run.Model,
+		ArtifactCount:    len(injectResult.Artifacts),
+		ObservationCount: len(injectResult.Observations),
+		Warnings:         injectResult.Run.Warnings,
+		Errors:           injectResult.Run.Errors,
+		OutputFiles:      outputFiles(opts.Config.Mode, opts.Config.Output.Formats),
+	})
+}
+
+func outputFiles(mode core.Mode, formats []string) []string {
+	files := []string{"evidence-index.json", "evidence-index.md"}
+	for _, format := range formats {
+		switch strings.ToLower(format) {
+		case "json":
+			files = append(files, string(mode)+".json")
+		case "markdown":
+			files = append(files, string(mode)+".md")
+		case "pdf":
+			files = append(files, string(mode)+".pdf")
+		}
+	}
+	return files
 }
 
 func sanitizeAssessment(result *core.AssessmentResult) {

@@ -23,6 +23,28 @@ func TestRunInitManifestCreatesFile(t *testing.T) {
 	}
 }
 
+func TestRunInitDemoCreatesArtifactsAndManifest(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	demoPath := filepath.Join(dir, "demo")
+	if err := Run(context.Background(), []string{"init", "demo", "--mode", "assess", "--out", demoPath}); err != nil {
+		t.Fatalf("run init demo: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(demoPath, "job.yaml")); err != nil {
+		t.Fatalf("expected demo manifest: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(demoPath, "artifacts", "notes.txt")); err != nil {
+		t.Fatalf("expected demo notes artifact: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(demoPath, "artifacts", "scan.nmap")); err != nil {
+		t.Fatalf("expected demo nmap artifact: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(demoPath, "artifacts", "terminal.png")); err != nil {
+		t.Fatalf("expected demo screenshot artifact: %v", err)
+	}
+}
+
 func TestRunTemplateValidateAcceptsValidTemplate(t *testing.T) {
 	t.Parallel()
 
