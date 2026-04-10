@@ -3,7 +3,7 @@ package assess
 import (
 	"context"
 	"fmt"
-	"strings"
+	"time"
 
 	"injectctl/internal/ai/ollama"
 	"injectctl/internal/core"
@@ -18,42 +18,33 @@ func Build(ctx context.Context, client *ollama.Client, cfg core.Config, artifact
 	draft, warnings, synthErr := client.SynthesizeAssessment(ctx, cfg, artifacts, observations)
 	run.Warnings = append(run.Warnings, warnings...)
 	if synthErr != nil {
-		run.Errors = append(run.Errors, "assessment synthesis failed; heuristic draft emitted")
-		draft = heuristicDraft(observations)
+		run.Errors = append(run.Errors, "assessment synthesis failed; evidence-only error report emitted")
+		return &core.AssessmentResult{
+			Run:          *run,
+			Status:       "evidence_only",
+			Config:       cfg,
+			Artifacts:    artifacts,
+			Observations: observations,
+			Draft:        core.AssessmentDraft{},
+			ErrorReport: &core.ErrorReport{
+				Stage:       "synthesis",
+				Message:     synthErr.Error(),
+				GeneratedAt: time.Now().UTC(),
+				Recommendations: []string{
+					"Review the normalized evidence in the JSON output.",
+					"Confirm Ollama model availability and rerun the job.",
+					"Check prompt inputs and template constraints if the failure persists.",
+				},
+			},
+		}, nil
 	}
 
 	return &core.AssessmentResult{
 		Run:          *run,
+		Status:       "draft_ready",
 		Config:       cfg,
 		Artifacts:    artifacts,
 		Observations: observations,
 		Draft:        draft,
 	}, nil
-}
-
-func heuristicDraft(observations []core.Observation) core.AssessmentDraft {
-	draft := core.AssessmentDraft{
-		ExecutiveSummary: "AI synthesis failed validation. Review the evidence-backed findings below before distribution.",
-	}
-	for i, observation := range observations {
-		severity := observation.Severity
-		if severity == "" {
-			severity = "info"
-		}
-		var evidenceRefs []string
-		for _, evidence := range observation.Evidence {
-			evidenceRefs = append(evidenceRefs, evidence.ArtifactID+":"+strings.TrimSpace(evidence.Description))
-		}
-		draft.Findings = append(draft.Findings, core.Finding{
-			ID:             fmt.Sprintf("heuristic-finding-%d", i+1),
-			Title:          observation.Title,
-			Severity:       severity,
-			Description:    observation.Detail,
-			Impact:         "Analyst review required to validate impact.",
-			Remediation:    "Investigate and confirm the observation against source evidence.",
-			EvidenceRefs:   evidenceRefs,
-			ObservationIDs: []string{observation.ID},
-		})
-	}
-	return draft
 }

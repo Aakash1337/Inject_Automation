@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -141,28 +140,12 @@ func sanitizeAssessment(result *core.AssessmentResult) {
 	if len(result.Config.Output.RedactionRules) == 0 {
 		return
 	}
-	payload, err := json.Marshal(result)
-	if err != nil {
-		result.Run.Warnings = append(result.Run.Warnings, "failed to serialize result for redaction")
-		return
-	}
-	redacted := normalize.RedactString(string(payload), result.Config.Output.RedactionRules)
-	if err := json.Unmarshal([]byte(redacted), result); err != nil {
-		result.Run.Warnings = append(result.Run.Warnings, "failed to deserialize redacted result")
-	}
+	result.Run.Warnings = append(result.Run.Warnings, normalize.RedactAssessmentResult(result, result.Config.Output.RedactionRules)...)
 }
 
 func sanitizeInject(result *core.InjectResult) {
 	if len(result.Config.Output.RedactionRules) == 0 {
 		return
 	}
-	payload, err := json.Marshal(result)
-	if err != nil {
-		result.Run.Warnings = append(result.Run.Warnings, "failed to serialize result for redaction")
-		return
-	}
-	redacted := normalize.RedactString(string(payload), result.Config.Output.RedactionRules)
-	if err := json.Unmarshal([]byte(redacted), result); err != nil {
-		result.Run.Warnings = append(result.Run.Warnings, "failed to deserialize redacted result")
-	}
+	result.Run.Warnings = append(result.Run.Warnings, normalize.RedactInjectResult(result, result.Config.Output.RedactionRules)...)
 }

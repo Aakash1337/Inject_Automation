@@ -112,6 +112,13 @@ type RunRecord struct {
 	Errors      []string      `json:"errors,omitempty"`
 }
 
+type ErrorReport struct {
+	Stage           string    `json:"stage"`
+	Message         string    `json:"message"`
+	GeneratedAt     time.Time `json:"generated_at"`
+	Recommendations []string  `json:"recommendations,omitempty"`
+}
+
 type AssessmentDraft struct {
 	ExecutiveSummary string    `json:"executive_summary"`
 	Findings         []Finding `json:"findings"`
@@ -124,18 +131,22 @@ type InjectDraft struct {
 
 type AssessmentResult struct {
 	Run          RunRecord       `json:"run"`
+	Status       string          `json:"status"`
 	Config       Config          `json:"config"`
 	Artifacts    []Artifact      `json:"artifacts"`
 	Observations []Observation   `json:"observations"`
 	Draft        AssessmentDraft `json:"draft"`
+	ErrorReport  *ErrorReport    `json:"error_report,omitempty"`
 }
 
 type InjectResult struct {
 	Run          RunRecord       `json:"run"`
+	Status       string          `json:"status"`
 	Config       Config          `json:"config"`
 	Artifacts    []Artifact      `json:"artifacts"`
 	Observations []Observation   `json:"observations"`
 	Draft        InjectDraft     `json:"draft"`
+	ErrorReport  *ErrorReport    `json:"error_report,omitempty"`
 }
 
 type DoctorStatus struct {

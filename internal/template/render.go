@@ -15,6 +15,20 @@ const defaultAssessmentTemplate = `# {{ .Config.Title }}
 **Client:** {{ .Config.Client }}
 **Environment:** {{ .Config.Environment }}
 **Classification:** {{ .Config.Classification }}
+**Status:** {{ .Status }}
+
+{{- if .ErrorReport }}
+## Generation Error
+**Stage:** {{ .ErrorReport.Stage }}
+**Message:** {{ .ErrorReport.Message }}
+
+{{- if .ErrorReport.Recommendations }}
+### Recommendations
+{{- range .ErrorReport.Recommendations }}
+- {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
 
 ## Executive Summary
 {{ .Draft.ExecutiveSummary }}
@@ -46,6 +60,20 @@ const defaultInjectTemplate = `# {{ .Config.Title }}
 **Client:** {{ .Config.Client }}
 **Environment:** {{ .Config.Environment }}
 **Classification:** {{ .Config.Classification }}
+**Status:** {{ .Status }}
+
+{{- if .ErrorReport }}
+## Generation Error
+**Stage:** {{ .ErrorReport.Stage }}
+**Message:** {{ .ErrorReport.Message }}
+
+{{- if .ErrorReport.Recommendations }}
+### Recommendations
+{{- range .ErrorReport.Recommendations }}
+- {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
 
 ## Scenario Summary
 {{ .Draft.ScenarioSummary }}

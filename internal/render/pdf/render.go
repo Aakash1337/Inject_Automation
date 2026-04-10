@@ -12,6 +12,14 @@ func WriteAssessment(path string, result *core.AssessmentResult) error {
 	pdf := newDoc()
 	pdf.AddPage()
 	writeHeader(pdf, result.Config.Title, result.Config.Client, result.Config.Environment, result.Config.Classification)
+	writeSection(pdf, "Status", result.Status)
+	if result.ErrorReport != nil {
+		writeSection(pdf, "Generation Error", strings.Join([]string{
+			"Stage: " + result.ErrorReport.Stage,
+			"Message: " + result.ErrorReport.Message,
+			"Recommendations: " + strings.Join(result.ErrorReport.Recommendations, "; "),
+		}, "\n"))
+	}
 	writeSection(pdf, "Executive Summary", result.Draft.ExecutiveSummary)
 	if len(result.Draft.Findings) == 0 {
 		writeSection(pdf, "Findings", "No findings were generated. Review the observations section.")
@@ -33,6 +41,14 @@ func WriteInject(path string, result *core.InjectResult) error {
 	pdf := newDoc()
 	pdf.AddPage()
 	writeHeader(pdf, result.Config.Title, result.Config.Client, result.Config.Environment, result.Config.Classification)
+	writeSection(pdf, "Status", result.Status)
+	if result.ErrorReport != nil {
+		writeSection(pdf, "Generation Error", strings.Join([]string{
+			"Stage: " + result.ErrorReport.Stage,
+			"Message: " + result.ErrorReport.Message,
+			"Recommendations: " + strings.Join(result.ErrorReport.Recommendations, "; "),
+		}, "\n"))
+	}
 	writeSection(pdf, "Scenario Summary", result.Draft.ScenarioSummary)
 	if len(result.Draft.Items) == 0 {
 		writeSection(pdf, "Injects", "No injects were generated. Review the observations section.")

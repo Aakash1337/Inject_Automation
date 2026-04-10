@@ -102,10 +102,10 @@ func (c *Client) SynthesizeAssessment(ctx context.Context, cfg core.Config, arti
 		response, repairWarnings, repairErr := c.generate(ctx, system, repairPrompt, nil)
 		warnings = append(warnings, repairWarnings...)
 		if repairErr != nil {
-			return core.AssessmentDraft{}, warnings, err
+			return core.AssessmentDraft{}, warnings, fmt.Errorf("assessment synthesis repair failed after invalid JSON: %w", repairErr)
 		}
 		if err := decodeStructured(response, &draft); err != nil {
-			return core.AssessmentDraft{}, warnings, err
+			return core.AssessmentDraft{}, warnings, fmt.Errorf("assessment synthesis returned invalid JSON after repair: %w", err)
 		}
 	}
 
@@ -127,10 +127,10 @@ func (c *Client) SynthesizeInject(ctx context.Context, cfg core.Config, artifact
 		response, repairWarnings, repairErr := c.generate(ctx, system, repairPrompt, nil)
 		warnings = append(warnings, repairWarnings...)
 		if repairErr != nil {
-			return core.InjectDraft{}, warnings, err
+			return core.InjectDraft{}, warnings, fmt.Errorf("inject synthesis repair failed after invalid JSON: %w", repairErr)
 		}
 		if err := decodeStructured(response, &draft); err != nil {
-			return core.InjectDraft{}, warnings, err
+			return core.InjectDraft{}, warnings, fmt.Errorf("inject synthesis returned invalid JSON after repair: %w", err)
 		}
 	}
 

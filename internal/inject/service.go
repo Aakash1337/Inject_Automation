@@ -3,7 +3,7 @@ package inject
 import (
 	"context"
 	"fmt"
-	"strings"
+	"time"
 
 	"injectctl/internal/ai/ollama"
 	"injectctl/internal/core"
@@ -18,39 +18,33 @@ func Build(ctx context.Context, client *ollama.Client, cfg core.Config, artifact
 	draft, warnings, synthErr := client.SynthesizeInject(ctx, cfg, artifacts, observations)
 	run.Warnings = append(run.Warnings, warnings...)
 	if synthErr != nil {
-		run.Errors = append(run.Errors, "inject synthesis failed; heuristic draft emitted")
-		draft = heuristicDraft(observations)
+		run.Errors = append(run.Errors, "inject synthesis failed; evidence-only error report emitted")
+		return &core.InjectResult{
+			Run:          *run,
+			Status:       "evidence_only",
+			Config:       cfg,
+			Artifacts:    artifacts,
+			Observations: observations,
+			Draft:        core.InjectDraft{},
+			ErrorReport: &core.ErrorReport{
+				Stage:       "synthesis",
+				Message:     synthErr.Error(),
+				GeneratedAt: time.Now().UTC(),
+				Recommendations: []string{
+					"Review the normalized evidence in the JSON output.",
+					"Confirm Ollama model availability and rerun the job.",
+					"Check prompt inputs and template constraints if the failure persists.",
+				},
+			},
+		}, nil
 	}
 
 	return &core.InjectResult{
 		Run:          *run,
+		Status:       "draft_ready",
 		Config:       cfg,
 		Artifacts:    artifacts,
 		Observations: observations,
 		Draft:        draft,
 	}, nil
-}
-
-func heuristicDraft(observations []core.Observation) core.InjectDraft {
-	draft := core.InjectDraft{
-		ScenarioSummary: "AI synthesis failed validation. Review the evidence-backed injects below before use in an exercise.",
-	}
-	for i, observation := range observations {
-		var evidenceRefs []string
-		for _, evidence := range observation.Evidence {
-			evidenceRefs = append(evidenceRefs, evidence.ArtifactID+":"+strings.TrimSpace(evidence.Description))
-		}
-		draft.Items = append(draft.Items, core.InjectItem{
-			ID:             fmt.Sprintf("heuristic-inject-%d", i+1),
-			Title:          observation.Title,
-			Audience:       "Blue Team",
-			Channel:        "Email",
-			Trigger:        "Use when the related evidence appears in the scenario timeline.",
-			ExpectedAction: "Investigate the evidence and document containment or escalation steps.",
-			Body:           observation.Detail,
-			EvidenceRefs:   evidenceRefs,
-			ObservationIDs: []string{observation.ID},
-		})
-	}
-	return draft
 }
