@@ -8,6 +8,7 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         goos: [windows, linux, darwin]
         goarch: [amd64, arm64]
