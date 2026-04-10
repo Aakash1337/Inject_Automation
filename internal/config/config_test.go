@@ -28,6 +28,9 @@ func TestLoadAppliesDefaultsAndValidate(t *testing.T) {
 	if cfg.AI.Provider != "ollama" {
 		t.Fatalf("expected ollama provider, got %q", cfg.AI.Provider)
 	}
+	if cfg.AI.Profile != "balanced" {
+		t.Fatalf("expected balanced profile, got %q", cfg.AI.Profile)
+	}
 	if cfg.AI.Model != "gemma4:26b" {
 		t.Fatalf("expected default model, got %q", cfg.AI.Model)
 	}
@@ -42,6 +45,31 @@ func TestLoadAppliesDefaultsAndValidate(t *testing.T) {
 	}
 	if len(cfg.Output.Formats) != 3 {
 		t.Fatalf("expected default formats, got %v", cfg.Output.Formats)
+	}
+}
+
+func TestLoadProfileAppliesProfileModels(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "job.yaml")
+	content := []byte("mode: inject\ninstructions: test instructions\nai:\n  profile: quality\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	cfg, _, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.AI.Profile != "quality" {
+		t.Fatalf("expected quality profile, got %q", cfg.AI.Profile)
+	}
+	if cfg.AI.Model != "gemma4:31b" {
+		t.Fatalf("expected quality profile model, got %q", cfg.AI.Model)
+	}
+	if cfg.AI.FallbackModel != "gemma4:26b" {
+		t.Fatalf("expected quality profile fallback, got %q", cfg.AI.FallbackModel)
 	}
 }
 

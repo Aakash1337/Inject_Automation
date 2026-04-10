@@ -25,6 +25,7 @@ type Config struct {
 type AIConfig struct {
 	Provider              string  `json:"provider" yaml:"provider"`
 	Endpoint              string  `json:"endpoint" yaml:"endpoint"`
+	Profile               string  `json:"profile,omitempty" yaml:"profile,omitempty"`
 	Model                 string  `json:"model" yaml:"model"`
 	FallbackModel         string  `json:"fallback_model" yaml:"fallback_model"`
 	Temperature           float64 `json:"temperature" yaml:"temperature"`
@@ -124,20 +125,20 @@ type ErrorReport struct {
 }
 
 type EvidenceIndex struct {
-	RunID   string              `json:"run_id"`
-	Mode    Mode                `json:"mode"`
+	RunID   string               `json:"run_id"`
+	Mode    Mode                 `json:"mode"`
 	Entries []EvidenceIndexEntry `json:"entries"`
 }
 
 type EvidenceIndexEntry struct {
-	ArtifactID    string   `json:"artifact_id"`
-	Path          string   `json:"path"`
-	Kind          string   `json:"kind"`
-	Parser        string   `json:"parser"`
-	MIME          string   `json:"mime"`
-	SHA256        string   `json:"sha256"`
+	ArtifactID     string   `json:"artifact_id"`
+	Path           string   `json:"path"`
+	Kind           string   `json:"kind"`
+	Parser         string   `json:"parser"`
+	MIME           string   `json:"mime"`
+	SHA256         string   `json:"sha256"`
 	ObservationIDs []string `json:"observation_ids,omitempty"`
-	Snippets      []string `json:"snippets,omitempty"`
+	Snippets       []string `json:"snippets,omitempty"`
 }
 
 type AssessmentDraft struct {
@@ -161,19 +162,24 @@ type AssessmentResult struct {
 }
 
 type InjectResult struct {
-	Run          RunRecord       `json:"run"`
-	Status       string          `json:"status"`
-	Config       Config          `json:"config"`
-	Artifacts    []Artifact      `json:"artifacts"`
-	Observations []Observation   `json:"observations"`
-	Draft        InjectDraft     `json:"draft"`
-	ErrorReport  *ErrorReport    `json:"error_report,omitempty"`
+	Run          RunRecord     `json:"run"`
+	Status       string        `json:"status"`
+	Config       Config        `json:"config"`
+	Artifacts    []Artifact    `json:"artifacts"`
+	Observations []Observation `json:"observations"`
+	Draft        InjectDraft   `json:"draft"`
+	ErrorReport  *ErrorReport  `json:"error_report,omitempty"`
 }
 
 type DoctorStatus struct {
 	Endpoint        string   `json:"endpoint"`
+	Profile         string   `json:"profile,omitempty"`
+	PrimaryModel    string   `json:"primary_model,omitempty"`
+	FallbackModel   string   `json:"fallback_model,omitempty"`
 	OllamaReachable bool     `json:"ollama_reachable"`
 	InstalledModels []string `json:"installed_models,omitempty"`
+	SmokeTestModel  string   `json:"smoke_test_model,omitempty"`
+	SmokeTestPassed bool     `json:"smoke_test_passed,omitempty"`
 	OCRAvailable    bool     `json:"ocr_available"`
 	Warnings        []string `json:"warnings,omitempty"`
 	Errors          []string `json:"errors,omitempty"`

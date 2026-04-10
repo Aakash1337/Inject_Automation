@@ -42,6 +42,10 @@
         "endpoint": {
           "type": "string"
         },
+        "profile": {
+          "type": "string",
+          "enum": ["fast", "balanced", "quality"]
+        },
         "model": {
           "type": "string"
         },

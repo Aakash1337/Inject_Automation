@@ -52,9 +52,9 @@ func TestResolvePrimaryModelFallsBackWhenPrimaryMissing(t *testing.T) {
 	defer server.Close()
 
 	client := New(core.AIConfig{
-		Endpoint:      server.URL,
-		Model:         "gemma4:26b",
-		FallbackModel: "gemma4:e4b",
+		Endpoint:       server.URL,
+		Model:          "gemma4:26b",
+		FallbackModel:  "gemma4:e4b",
 		TimeoutSeconds: 30,
 	})
 
@@ -98,5 +98,46 @@ func TestSummarizePromptInputsTruncatesLargeInputs(t *testing.T) {
 	}
 	if !strings.HasSuffix(summarizedObservations[0].Detail, "...") {
 		t.Fatalf("expected truncated observation detail, got %q", summarizedObservations[0].Detail)
+	}
+}
+
+func TestSmokeTestUsesPrimaryModel(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]string{
+					{"name": "gemma4:26b"},
+					{"name": "gemma4:e4b"},
+				},
+			})
+		case "/api/generate":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": "OK",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := New(core.AIConfig{
+		Endpoint:       server.URL,
+		Model:          "gemma4:26b",
+		FallbackModel:  "gemma4:e4b",
+		TimeoutSeconds: 30,
+	})
+
+	model, warnings, err := client.SmokeTest(context.Background())
+	if err != nil {
+		t.Fatalf("smoke test: %v", err)
+	}
+	if model != "gemma4:26b" {
+		t.Fatalf("expected primary model, got %q", model)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
 	}
 }

@@ -31,7 +31,7 @@ type generateRequest struct {
 	Prompt  string          `json:"prompt"`
 	System  string          `json:"system,omitempty"`
 	Images  []string        `json:"images,omitempty"`
-	Format  string          `json:"format,omitempty"`
+	Format  any             `json:"format,omitempty"`
 	Stream  bool            `json:"stream"`
 	Options generateOptions `json:"options,omitempty"`
 }
@@ -42,7 +42,9 @@ type generateOptions struct {
 }
 
 type generateResponse struct {
-	Response string `json:"response"`
+	Response   string `json:"response"`
+	DoneReason string `json:"done_reason,omitempty"`
+	EvalCount  int    `json:"eval_count,omitempty"`
 }
 
 func New(cfg core.AIConfig) *Client {
@@ -151,7 +153,7 @@ func (c *Client) SynthesizeInject(ctx context.Context, cfg core.Config, artifact
 }
 
 func (c *Client) generate(ctx context.Context, system, prompt string, artifacts []core.Artifact, warnings []string) (string, []string, error) {
-	model, modelWarnings, err := c.resolvePrimaryModel(ctx)
+	model, modelWarnings, err := c.ResolveModel(ctx)
 	warnings = append(warnings, modelWarnings...)
 	if err != nil {
 		return "", warnings, err
@@ -181,6 +183,44 @@ func (c *Client) generate(ctx context.Context, system, prompt string, artifacts 
 	}
 
 	return "", warnings, err
+}
+
+func (c *Client) ResolveModel(ctx context.Context) (string, []string, error) {
+	return c.resolvePrimaryModel(ctx)
+}
+
+func (c *Client) SmokeTest(ctx context.Context) (string, []string, error) {
+	model, warnings, err := c.ResolveModel(ctx)
+	if err != nil {
+		return "", warnings, err
+	}
+
+	result, _, err := c.doGenerateText(ctx, model, "You are a connectivity smoke test. Reply with exactly OK.", "Reply with exactly OK.")
+	if err != nil {
+		if c.cfg.FallbackModel != "" && !strings.EqualFold(model, c.cfg.FallbackModel) {
+			warnings = append(warnings, "primary model smoke test failed; retrying with fallback model")
+			result, _, err = c.doGenerateText(ctx, c.cfg.FallbackModel, "You are a connectivity smoke test. Reply with exactly OK.", "Reply with exactly OK.")
+			if err == nil {
+				if strings.Contains(strings.ToUpper(result.Response), "OK") {
+					return c.cfg.FallbackModel, warnings, nil
+				}
+				if strings.TrimSpace(result.Response) == "" && result.EvalCount > 0 {
+					warnings = append(warnings, "fallback model smoke test returned an empty visible response but completed token evaluation")
+					return c.cfg.FallbackModel, warnings, nil
+				}
+			}
+		}
+		return "", warnings, err
+	}
+
+	if strings.Contains(strings.ToUpper(result.Response), "OK") {
+		return model, warnings, nil
+	}
+	if strings.TrimSpace(result.Response) == "" && result.EvalCount > 0 {
+		warnings = append(warnings, "smoke test returned an empty visible response but completed token evaluation")
+		return model, warnings, nil
+	}
+	return "", warnings, fmt.Errorf("smoke test returned unexpected response: %q", result.Response)
 }
 
 func (c *Client) doGenerate(ctx context.Context, model, system, prompt string, images []string) (string, string, error) {
@@ -221,6 +261,45 @@ func (c *Client) doGenerate(ctx context.Context, model, system, prompt string, i
 		return "", "", err
 	}
 	return strings.TrimSpace(generated.Response), model, nil
+}
+
+func (c *Client) doGenerateText(ctx context.Context, model, system, prompt string) (generateResponse, string, error) {
+	body, err := json.Marshal(generateRequest{
+		Model:  model,
+		Prompt: prompt,
+		System: system,
+		Stream: false,
+		Options: generateOptions{
+			Temperature: 0,
+			NumPredict:  32,
+		},
+	})
+	if err != nil {
+		return generateResponse{}, "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url("/api/generate"), bytes.NewReader(body))
+	if err != nil {
+		return generateResponse{}, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return generateResponse{}, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		payload, _ := io.ReadAll(resp.Body)
+		return generateResponse{}, "", fmt.Errorf("ollama text generate failed: %s", strings.TrimSpace(string(payload)))
+	}
+
+	var generated generateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&generated); err != nil {
+		return generateResponse{}, "", err
+	}
+	generated.Response = strings.TrimSpace(generated.Response)
+	return generated, model, nil
 }
 
 func (c *Client) url(path string) string {

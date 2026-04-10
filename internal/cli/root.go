@@ -80,24 +80,47 @@ func runMode(ctx context.Context, mode core.Mode, args []string) error {
 func runDoctor(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	endpoint := fs.String("endpoint", "http://127.0.0.1:11434", "Ollama endpoint")
-	model := fs.String("model", "gemma4:26b", "Primary model to validate")
-	fallback := fs.String("fallback-model", "gemma4:e4b", "Fallback model to validate")
+	profile := fs.String("profile", "balanced", "Model profile to validate: fast, balanced, quality")
+	model := fs.String("model", "", "Primary model to validate")
+	fallback := fs.String("fallback-model", "", "Fallback model to validate")
+	smoke := fs.Bool("smoke", false, "Run a lightweight live inference smoke test")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	status, err := doctor.Run(ctx, *endpoint, *model, *fallback)
+	status, err := doctor.Run(ctx, core.AIConfig{
+		Endpoint:      *endpoint,
+		Profile:       *profile,
+		Model:         *model,
+		FallbackModel: *fallback,
+	}, *smoke)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(os.Stdout, "Ollama endpoint: %s\n", status.Endpoint)
+	if status.Profile != "" {
+		fmt.Fprintf(os.Stdout, "Profile: %s\n", status.Profile)
+	}
+	if status.PrimaryModel != "" {
+		fmt.Fprintf(os.Stdout, "Primary model: %s\n", status.PrimaryModel)
+	}
+	if status.FallbackModel != "" {
+		fmt.Fprintf(os.Stdout, "Fallback model: %s\n", status.FallbackModel)
+	}
 	fmt.Fprintf(os.Stdout, "Reachable: %t\n", status.OllamaReachable)
 	fmt.Fprintf(os.Stdout, "OCR available: %t\n", status.OCRAvailable)
 	if len(status.InstalledModels) > 0 {
 		fmt.Fprintln(os.Stdout, "Installed models:")
 		for _, model := range status.InstalledModels {
 			fmt.Fprintf(os.Stdout, "  - %s\n", model)
+		}
+	}
+	if *smoke {
+		if status.SmokeTestPassed {
+			fmt.Fprintf(os.Stdout, "Smoke test: passed (%s)\n", status.SmokeTestModel)
+		} else {
+			fmt.Fprintln(os.Stdout, "Smoke test: failed")
 		}
 	}
 	for _, warning := range status.Warnings {

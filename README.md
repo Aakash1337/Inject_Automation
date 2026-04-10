@@ -44,8 +44,10 @@ To use the application, you need:
 
 - the `injectctl` binary for your platform
 - `Ollama` running locally
-- a local model such as `gemma4:26b`
-- optionally `gemma4:e4b` as a fallback
+- at least one local Gemma 4 model profile
+- `gemma4:26b` for the default `balanced` profile
+- `gemma4:e4b` as the normal fallback
+- optionally `gemma4:31b` for the `quality` profile
 - optionally `tesseract` if you want OCR from screenshots
 
 You do **not** need Go installed on the target machine if you are running a released binary.
@@ -63,6 +65,12 @@ ollama pull gemma4:26b
 ollama pull gemma4:e4b
 ```
 
+Optional quality profile:
+
+```powershell
+ollama pull gemma4:31b
+```
+
 ### 2. Check Readiness
 
 Run:
@@ -73,7 +81,7 @@ injectctl doctor
 
 You want to see:
 - Ollama reachable
-- `gemma4:26b` installed
+- the selected profile resolved to installed models
 - OCR available if you plan to use screenshots
 
 ### 3. Create a Working Folder
@@ -151,8 +159,9 @@ artifacts:
 ai:
   provider: ollama
   endpoint: http://127.0.0.1:11434
-  model: gemma4:26b
-  fallback_model: gemma4:e4b
+  profile: balanced
+  # model: gemma4:26b
+  # fallback_model: gemma4:e4b
   temperature: 0.2
   max_tokens: 2048
   timeout_seconds: 90
@@ -203,11 +212,14 @@ More examples:
 - `ai.endpoint`
   Usually `http://127.0.0.1:11434` for local Ollama.
 
+- `ai.profile`
+  Simple model preset. Use `fast`, `balanced`, or `quality`.
+
 - `ai.model`
-  Main Ollama model. Default is `gemma4:26b`.
+  Optional explicit primary model override. If omitted, the selected profile sets it.
 
 - `ai.fallback_model`
-  Backup model if the primary model fails.
+  Optional explicit fallback override. If omitted, the selected profile sets it.
 
 - `ai.timeout_seconds`
   How long the tool waits for Ollama before timing out a request.
@@ -251,13 +263,14 @@ Images are handled like this:
 The AI layer now works like this:
 
 1. `injectctl` checks Ollama availability.
-2. It checks whether the primary model is installed.
-3. If the primary model is missing and the fallback model exists, it switches to the fallback automatically.
-4. Prompt input is trimmed to configurable artifact and observation limits so very large runs do not overload the prompt.
-5. Prompt system instructions come from embedded defaults unless you provide a custom `prompt_dir`.
-6. The model must return structured JSON.
-7. If the JSON is malformed, the tool retries once with a repair prompt.
-8. If synthesis still fails, the tool emits an `evidence_only` result with an error report.
+2. It resolves an AI profile such as `balanced` or `quality` into primary and fallback models.
+3. It checks whether the primary model is installed.
+4. If the primary model is missing and the fallback model exists, it switches to the fallback automatically.
+5. Prompt input is trimmed to configurable artifact and observation limits so very large runs do not overload the prompt.
+6. Prompt system instructions come from embedded defaults unless you provide a custom `prompt_dir`.
+7. The model must return structured JSON.
+8. If the JSON is malformed, the tool retries once with a repair prompt.
+9. If synthesis still fails, the tool emits an `evidence_only` result with an error report.
 
 ## Commands
 
@@ -275,6 +288,12 @@ Optional flags:
 
 ```powershell
 injectctl doctor --endpoint http://127.0.0.1:11434 --model gemma4:26b --fallback-model gemma4:e4b
+```
+
+Profile-based example:
+
+```powershell
+injectctl doctor --profile quality --smoke
 ```
 
 ### `injectctl init manifest`

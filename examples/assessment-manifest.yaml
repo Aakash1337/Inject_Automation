@@ -11,8 +11,9 @@ artifacts:
 ai:
   provider: ollama
   endpoint: http://127.0.0.1:11434
-  model: gemma4:26b
-  fallback_model: gemma4:e4b
+  profile: balanced
+  # model: gemma4:26b
+  # fallback_model: gemma4:e4b
   temperature: 0.2
   max_tokens: 2048
   timeout_seconds: 90

@@ -40,20 +40,25 @@ func TestRunDoctorAgainstMockServer(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tags" {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]string{
+					{"name": "gemma4:26b"},
+					{"name": "gemma4:e4b"},
+				},
+			})
+		case "/api/generate":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": "OK",
+			})
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"models": []map[string]string{
-				{"name": "gemma4:26b"},
-				{"name": "gemma4:e4b"},
-			},
-		})
 	}))
 	defer server.Close()
 
-	if err := Run(context.Background(), []string{"doctor", "--endpoint", server.URL, "--model", "gemma4:26b", "--fallback-model", "gemma4:e4b"}); err != nil {
+	if err := Run(context.Background(), []string{"doctor", "--endpoint", server.URL, "--profile", "balanced", "--smoke"}); err != nil {
 		t.Fatalf("run doctor: %v", err)
 	}
 }

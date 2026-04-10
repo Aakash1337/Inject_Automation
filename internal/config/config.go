@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"injectctl/internal/ai/modelprofile"
 	"injectctl/internal/core"
 
 	"gopkg.in/yaml.v3"
@@ -19,6 +20,7 @@ func DefaultConfig() core.Config {
 		AI: core.AIConfig{
 			Provider:              "ollama",
 			Endpoint:              "http://127.0.0.1:11434",
+			Profile:               "balanced",
 			Model:                 "gemma4:26b",
 			FallbackModel:         "gemma4:e4b",
 			Temperature:           0.2,
@@ -34,7 +36,7 @@ func DefaultConfig() core.Config {
 }
 
 func Load(path string) (core.Config, string, error) {
-	cfg := DefaultConfig()
+	cfg := core.Config{}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return cfg, "", fmt.Errorf("read manifest: %w", err)
@@ -63,35 +65,59 @@ func Validate(cfg *core.Config) error {
 	if cfg.Mode != core.ModeAssess && cfg.Mode != core.ModeInject {
 		return errors.New("manifest mode must be assess or inject")
 	}
-	if cfg.AI.Provider == "" {
-		cfg.AI.Provider = "ollama"
+	if err := ApplyAIDefaults(&cfg.AI); err != nil {
+		return err
 	}
-	if cfg.AI.Provider != "ollama" {
-		return errors.New("only ollama is supported in v1")
+	if cfg.Classification == "" {
+		cfg.Classification = "TLP:AMBER"
 	}
-	if cfg.AI.Endpoint == "" {
-		cfg.AI.Endpoint = "http://127.0.0.1:11434"
-	}
-	if cfg.AI.Model == "" {
-		cfg.AI.Model = "gemma4:26b"
-	}
-	if cfg.AI.MaxTokens <= 0 {
-		cfg.AI.MaxTokens = 2048
-	}
-	if cfg.AI.TimeoutSeconds <= 0 {
-		cfg.AI.TimeoutSeconds = 90
-	}
-	if cfg.AI.MaxPromptArtifacts <= 0 {
-		cfg.AI.MaxPromptArtifacts = 12
-	}
-	if cfg.AI.MaxPromptObservations <= 0 {
-		cfg.AI.MaxPromptObservations = 40
+	if cfg.AI.Temperature == 0 {
+		cfg.AI.Temperature = 0.2
 	}
 	if len(cfg.Output.Formats) == 0 {
 		cfg.Output.Formats = []string{"markdown", "json", "pdf"}
 	}
 	for i, format := range cfg.Output.Formats {
 		cfg.Output.Formats[i] = strings.ToLower(strings.TrimSpace(format))
+	}
+	return nil
+}
+
+func ApplyAIDefaults(ai *core.AIConfig) error {
+	if ai.Provider == "" {
+		ai.Provider = "ollama"
+	}
+	if ai.Provider != "ollama" {
+		return errors.New("only ollama is supported in v1")
+	}
+	if ai.Endpoint == "" {
+		ai.Endpoint = "http://127.0.0.1:11434"
+	}
+	if ai.Profile == "" {
+		ai.Profile = "balanced"
+	}
+	profile, ok := modelprofile.Resolve(ai.Profile)
+	if !ok {
+		return fmt.Errorf("unsupported ai profile %q; supported values are fast, balanced, quality", ai.Profile)
+	}
+	ai.Profile = profile.Name
+	if ai.Model == "" {
+		ai.Model = profile.Model
+	}
+	if ai.FallbackModel == "" {
+		ai.FallbackModel = profile.FallbackModel
+	}
+	if ai.MaxTokens <= 0 {
+		ai.MaxTokens = 2048
+	}
+	if ai.TimeoutSeconds <= 0 {
+		ai.TimeoutSeconds = 90
+	}
+	if ai.MaxPromptArtifacts <= 0 {
+		ai.MaxPromptArtifacts = 12
+	}
+	if ai.MaxPromptObservations <= 0 {
+		ai.MaxPromptObservations = 40
 	}
 	return nil
 }
