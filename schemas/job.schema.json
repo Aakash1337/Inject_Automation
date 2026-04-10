@@ -53,6 +53,18 @@
         },
         "max_tokens": {
           "type": "integer"
+        },
+        "timeout_seconds": {
+          "type": "integer"
+        },
+        "prompt_dir": {
+          "type": "string"
+        },
+        "max_prompt_artifacts": {
+          "type": "integer"
+        },
+        "max_prompt_observations": {
+          "type": "integer"
         }
       }
     },

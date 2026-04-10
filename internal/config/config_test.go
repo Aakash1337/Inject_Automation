@@ -31,6 +31,15 @@ func TestLoadAppliesDefaultsAndValidate(t *testing.T) {
 	if cfg.AI.Model != "gemma4:26b" {
 		t.Fatalf("expected default model, got %q", cfg.AI.Model)
 	}
+	if cfg.AI.TimeoutSeconds != 90 {
+		t.Fatalf("expected default timeout seconds, got %d", cfg.AI.TimeoutSeconds)
+	}
+	if cfg.AI.MaxPromptArtifacts != 12 {
+		t.Fatalf("expected default max prompt artifacts, got %d", cfg.AI.MaxPromptArtifacts)
+	}
+	if cfg.AI.MaxPromptObservations != 40 {
+		t.Fatalf("expected default max prompt observations, got %d", cfg.AI.MaxPromptObservations)
+	}
 	if len(cfg.Output.Formats) != 3 {
 		t.Fatalf("expected default formats, got %v", cfg.Output.Formats)
 	}
@@ -41,6 +50,9 @@ func TestResolvePathsMakesRelativeEntriesAbsolute(t *testing.T) {
 
 	cfg := core.Config{
 		Template: "templates/default/assessment.md.tmpl",
+		AI: core.AIConfig{
+			PromptDir: "prompts",
+		},
 		Artifacts: []string{
 			"./artifacts",
 		},
@@ -53,6 +65,9 @@ func TestResolvePathsMakesRelativeEntriesAbsolute(t *testing.T) {
 
 	if cfg.Template != filepath.Join("C:\\repo", "templates/default/assessment.md.tmpl") {
 		t.Fatalf("unexpected template path: %q", cfg.Template)
+	}
+	if cfg.AI.PromptDir != filepath.Join("C:\\repo", "prompts") {
+		t.Fatalf("unexpected prompt dir: %q", cfg.AI.PromptDir)
 	}
 	if cfg.Artifacts[0] != filepath.Join("C:\\repo", "artifacts") {
 		t.Fatalf("unexpected artifact path: %q", cfg.Artifacts[0])

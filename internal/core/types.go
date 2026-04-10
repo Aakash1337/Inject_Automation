@@ -23,12 +23,16 @@ type Config struct {
 }
 
 type AIConfig struct {
-	Provider      string  `json:"provider" yaml:"provider"`
-	Endpoint      string  `json:"endpoint" yaml:"endpoint"`
-	Model         string  `json:"model" yaml:"model"`
-	FallbackModel string  `json:"fallback_model" yaml:"fallback_model"`
-	Temperature   float64 `json:"temperature" yaml:"temperature"`
-	MaxTokens     int     `json:"max_tokens" yaml:"max_tokens"`
+	Provider              string  `json:"provider" yaml:"provider"`
+	Endpoint              string  `json:"endpoint" yaml:"endpoint"`
+	Model                 string  `json:"model" yaml:"model"`
+	FallbackModel         string  `json:"fallback_model" yaml:"fallback_model"`
+	Temperature           float64 `json:"temperature" yaml:"temperature"`
+	MaxTokens             int     `json:"max_tokens" yaml:"max_tokens"`
+	TimeoutSeconds        int     `json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"`
+	PromptDir             string  `json:"prompt_dir,omitempty" yaml:"prompt_dir,omitempty"`
+	MaxPromptArtifacts    int     `json:"max_prompt_artifacts,omitempty" yaml:"max_prompt_artifacts,omitempty"`
+	MaxPromptObservations int     `json:"max_prompt_observations,omitempty" yaml:"max_prompt_observations,omitempty"`
 }
 
 type OutputConfig struct {

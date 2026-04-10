@@ -2,7 +2,6 @@ package doctor
 
 import (
 	"context"
-	"strings"
 
 	"injectctl/internal/ai/ollama"
 	"injectctl/internal/core"
@@ -35,8 +34,8 @@ func Run(ctx context.Context, endpoint, model, fallback string) (core.DoctorStat
 	}
 	status.InstalledModels = models
 
-	if !containsModel(models, model) {
-		if fallback != "" && containsModel(models, fallback) {
+	if !ollama.ContainsModel(models, model) {
+		if fallback != "" && ollama.ContainsModel(models, fallback) {
 			status.Warnings = append(status.Warnings, "primary model missing; fallback model is available")
 		} else {
 			status.Errors = append(status.Errors, "required primary model is not installed")
@@ -46,13 +45,4 @@ func Run(ctx context.Context, endpoint, model, fallback string) (core.DoctorStat
 		status.Warnings = append(status.Warnings, "tesseract is not installed; screenshot OCR will be unavailable")
 	}
 	return status, nil
-}
-
-func containsModel(models []string, target string) bool {
-	for _, model := range models {
-		if strings.EqualFold(model, target) || strings.HasPrefix(strings.ToLower(model), strings.ToLower(target)+":") {
-			return true
-		}
-	}
-	return false
 }

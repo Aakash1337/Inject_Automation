@@ -13,6 +13,7 @@ It gives you:
 - a human-readable Markdown report
 - a machine-readable JSON file
 - a PDF
+- a separate evidence index in Markdown and JSON
 
 It is designed for blue teams, assessment teams, and exercise planners who want a fast first draft without sending data to a cloud service.
 
@@ -127,6 +128,8 @@ You will usually get:
 - `assessment.md` or `inject.md`
 - `assessment.json` or `inject.json`
 - `assessment.pdf` or `inject.pdf`
+- `evidence-index.md`
+- `evidence-index.json`
 
 If generation fails, the tool now produces an **evidence-only** result with an explicit error report instead of pretending a polished draft was created.
 
@@ -152,6 +155,10 @@ ai:
   fallback_model: gemma4:e4b
   temperature: 0.2
   max_tokens: 2048
+  timeout_seconds: 90
+  max_prompt_artifacts: 12
+  max_prompt_observations: 40
+  # prompt_dir: ./prompts
 output:
   formats:
     - markdown
@@ -202,6 +209,18 @@ More examples:
 - `ai.fallback_model`
   Backup model if the primary model fails.
 
+- `ai.timeout_seconds`
+  How long the tool waits for Ollama before timing out a request.
+
+- `ai.max_prompt_artifacts`
+  Limits how many artifacts are sent into the AI prompt context.
+
+- `ai.max_prompt_observations`
+  Limits how many normalized observations are sent into the AI prompt context.
+
+- `ai.prompt_dir`
+  Optional folder containing custom AI prompt files such as `assessment_system.txt` and `inject_system.txt`.
+
 - `output.formats`
   Which outputs to create: `markdown`, `json`, `pdf`.
 
@@ -226,6 +245,19 @@ Images are handled like this:
 
 1. OCR is attempted first if `tesseract` is installed.
 2. Images are also passed to Ollama for multimodal understanding when possible.
+
+## AI Behavior
+
+The AI layer now works like this:
+
+1. `injectctl` checks Ollama availability.
+2. It checks whether the primary model is installed.
+3. If the primary model is missing and the fallback model exists, it switches to the fallback automatically.
+4. Prompt input is trimmed to configurable artifact and observation limits so very large runs do not overload the prompt.
+5. Prompt system instructions come from embedded defaults unless you provide a custom `prompt_dir`.
+6. The model must return structured JSON.
+7. If the JSON is malformed, the tool retries once with a repair prompt.
+8. If synthesis still fails, the tool emits an `evidence_only` result with an error report.
 
 ## Commands
 
@@ -305,6 +337,13 @@ Important:
 - custom templates affect Markdown output
 - PDF output uses the built-in PDF layout
 
+Custom AI system prompts are separate from report templates.
+
+If you set `ai.prompt_dir`, the tool will look for:
+
+- `assessment_system.txt`
+- `inject_system.txt`
+
 ## Output Files
 
 ### Markdown
@@ -320,6 +359,7 @@ Best for:
 - automation
 - pipelines
 - storing normalized findings or injects
+- reviewing detailed AI/error state
 
 ### PDF
 
@@ -327,6 +367,13 @@ Best for:
 - sharing with non-technical stakeholders
 - executive review
 - preserving layout
+
+### Evidence Index
+
+Best for:
+- auditing exactly which artifacts were processed
+- checking which observations were linked to each artifact
+- reviewing snippets without reading the full report
 
 ## Safety and Review Expectations
 

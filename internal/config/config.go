@@ -17,12 +17,15 @@ func DefaultConfig() core.Config {
 	return core.Config{
 		Classification: "TLP:AMBER",
 		AI: core.AIConfig{
-			Provider:      "ollama",
-			Endpoint:      "http://127.0.0.1:11434",
-			Model:         "gemma4:26b",
-			FallbackModel: "gemma4:e4b",
-			Temperature:   0.2,
-			MaxTokens:     2048,
+			Provider:              "ollama",
+			Endpoint:              "http://127.0.0.1:11434",
+			Model:                 "gemma4:26b",
+			FallbackModel:         "gemma4:e4b",
+			Temperature:           0.2,
+			MaxTokens:             2048,
+			TimeoutSeconds:        90,
+			MaxPromptArtifacts:    12,
+			MaxPromptObservations: 40,
 		},
 		Output: core.OutputConfig{
 			Formats: []string{"markdown", "json", "pdf"},
@@ -75,6 +78,15 @@ func Validate(cfg *core.Config) error {
 	if cfg.AI.MaxTokens <= 0 {
 		cfg.AI.MaxTokens = 2048
 	}
+	if cfg.AI.TimeoutSeconds <= 0 {
+		cfg.AI.TimeoutSeconds = 90
+	}
+	if cfg.AI.MaxPromptArtifacts <= 0 {
+		cfg.AI.MaxPromptArtifacts = 12
+	}
+	if cfg.AI.MaxPromptObservations <= 0 {
+		cfg.AI.MaxPromptObservations = 40
+	}
 	if len(cfg.Output.Formats) == 0 {
 		cfg.Output.Formats = []string{"markdown", "json", "pdf"}
 	}
@@ -87,6 +99,9 @@ func Validate(cfg *core.Config) error {
 func ResolvePaths(cfg *core.Config, baseDir string) {
 	if cfg.Template != "" && !filepath.IsAbs(cfg.Template) {
 		cfg.Template = filepath.Join(baseDir, cfg.Template)
+	}
+	if cfg.AI.PromptDir != "" && !filepath.IsAbs(cfg.AI.PromptDir) {
+		cfg.AI.PromptDir = filepath.Join(baseDir, cfg.AI.PromptDir)
 	}
 	if cfg.Output.ProjectDir != "" && !filepath.IsAbs(cfg.Output.ProjectDir) {
 		cfg.Output.ProjectDir = filepath.Join(baseDir, cfg.Output.ProjectDir)

@@ -46,8 +46,12 @@ type generateResponse struct {
 }
 
 func New(cfg core.AIConfig) *Client {
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 90 * time.Second
+	}
 	return &Client{
-		http: &http.Client{Timeout: 90 * time.Second},
+		http: &http.Client{Timeout: timeout},
 		cfg:  cfg,
 	}
 }
@@ -89,9 +93,13 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 }
 
 func (c *Client) SynthesizeAssessment(ctx context.Context, cfg core.Config, artifacts []core.Artifact, observations []core.Observation) (core.AssessmentDraft, []string, error) {
-	system := "You are drafting a corporate security assessment report. Return only valid JSON."
-	prompt := buildAssessmentPrompt(cfg, artifacts, observations)
-	response, warnings, err := c.generate(ctx, system, prompt, artifacts)
+	prompts, warnings, err := loadPromptBundle(cfg.AI)
+	if err != nil {
+		return core.AssessmentDraft{}, warnings, err
+	}
+	prompt, promptWarnings := buildAssessmentPrompt(cfg, artifacts, observations)
+	warnings = append(warnings, promptWarnings...)
+	response, warnings, err := c.generate(ctx, prompts.assessmentSystem, prompt, artifacts, warnings)
 	if err != nil {
 		return core.AssessmentDraft{}, warnings, err
 	}
@@ -99,7 +107,7 @@ func (c *Client) SynthesizeAssessment(ctx context.Context, cfg core.Config, arti
 	var draft core.AssessmentDraft
 	if err := decodeStructured(response, &draft); err != nil {
 		repairPrompt := "Repair this into valid JSON for the requested schema only:\n" + response
-		response, repairWarnings, repairErr := c.generate(ctx, system, repairPrompt, nil)
+		response, repairWarnings, repairErr := c.generate(ctx, prompts.assessmentSystem, repairPrompt, nil, nil)
 		warnings = append(warnings, repairWarnings...)
 		if repairErr != nil {
 			return core.AssessmentDraft{}, warnings, fmt.Errorf("assessment synthesis repair failed after invalid JSON: %w", repairErr)
@@ -114,9 +122,13 @@ func (c *Client) SynthesizeAssessment(ctx context.Context, cfg core.Config, arti
 }
 
 func (c *Client) SynthesizeInject(ctx context.Context, cfg core.Config, artifacts []core.Artifact, observations []core.Observation) (core.InjectDraft, []string, error) {
-	system := "You are drafting a cyber exercise inject package. Return only valid JSON."
-	prompt := buildInjectPrompt(cfg, artifacts, observations)
-	response, warnings, err := c.generate(ctx, system, prompt, artifacts)
+	prompts, warnings, err := loadPromptBundle(cfg.AI)
+	if err != nil {
+		return core.InjectDraft{}, warnings, err
+	}
+	prompt, promptWarnings := buildInjectPrompt(cfg, artifacts, observations)
+	warnings = append(warnings, promptWarnings...)
+	response, warnings, err := c.generate(ctx, prompts.injectSystem, prompt, artifacts, warnings)
 	if err != nil {
 		return core.InjectDraft{}, warnings, err
 	}
@@ -124,7 +136,7 @@ func (c *Client) SynthesizeInject(ctx context.Context, cfg core.Config, artifact
 	var draft core.InjectDraft
 	if err := decodeStructured(response, &draft); err != nil {
 		repairPrompt := "Repair this into valid JSON for the requested schema only:\n" + response
-		response, repairWarnings, repairErr := c.generate(ctx, system, repairPrompt, nil)
+		response, repairWarnings, repairErr := c.generate(ctx, prompts.injectSystem, repairPrompt, nil, nil)
 		warnings = append(warnings, repairWarnings...)
 		if repairErr != nil {
 			return core.InjectDraft{}, warnings, fmt.Errorf("inject synthesis repair failed after invalid JSON: %w", repairErr)
@@ -138,23 +150,29 @@ func (c *Client) SynthesizeInject(ctx context.Context, cfg core.Config, artifact
 	return draft, warnings, nil
 }
 
-func (c *Client) generate(ctx context.Context, system, prompt string, artifacts []core.Artifact) (string, []string, error) {
+func (c *Client) generate(ctx context.Context, system, prompt string, artifacts []core.Artifact, warnings []string) (string, []string, error) {
+	model, modelWarnings, err := c.resolvePrimaryModel(ctx)
+	warnings = append(warnings, modelWarnings...)
+	if err != nil {
+		return "", warnings, err
+	}
+
 	images, warnings := encodeImages(artifacts)
-	response, _, err := c.doGenerate(ctx, c.cfg.Model, system, prompt, images)
+	response, _, err := c.doGenerate(ctx, model, system, prompt, images)
 	if err == nil {
 		return response, warnings, nil
 	}
 
 	if len(images) > 0 {
 		warnings = append(warnings, "multimodal generation failed; retrying without images")
-		response, _, imageErr := c.doGenerate(ctx, c.cfg.Model, system, prompt, nil)
+		response, _, imageErr := c.doGenerate(ctx, model, system, prompt, nil)
 		if imageErr == nil {
 			return response, warnings, nil
 		}
 		err = imageErr
 	}
 
-	if c.cfg.FallbackModel != "" {
+	if c.cfg.FallbackModel != "" && !strings.EqualFold(model, c.cfg.FallbackModel) {
 		warnings = append(warnings, "primary model failed; retrying with fallback model")
 		response, _, fallbackErr := c.doGenerate(ctx, c.cfg.FallbackModel, system, prompt, nil)
 		if fallbackErr == nil {
@@ -209,6 +227,20 @@ func (c *Client) url(path string) string {
 	return strings.TrimRight(c.cfg.Endpoint, "/") + path
 }
 
+func (c *Client) resolvePrimaryModel(ctx context.Context) (string, []string, error) {
+	models, err := c.ListModels(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("list ollama models: %w", err)
+	}
+	if ContainsModel(models, c.cfg.Model) {
+		return c.cfg.Model, nil, nil
+	}
+	if c.cfg.FallbackModel != "" && ContainsModel(models, c.cfg.FallbackModel) {
+		return c.cfg.FallbackModel, []string{"primary model missing; using fallback model for synthesis"}, nil
+	}
+	return "", nil, fmt.Errorf("neither primary model %q nor fallback model %q is installed", c.cfg.Model, c.cfg.FallbackModel)
+}
+
 func encodeImages(artifacts []core.Artifact) ([]string, []string) {
 	var images []string
 	var warnings []string
@@ -239,7 +271,7 @@ func decodeStructured(raw string, out any) error {
 	return json.Unmarshal([]byte(raw[start:end+1]), out)
 }
 
-func buildAssessmentPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation) string {
+func buildAssessmentPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation) (string, []string) {
 	return buildPrompt(cfg, artifacts, observations, `Return JSON with:
 {
   "executive_summary": "string",
@@ -258,7 +290,7 @@ func buildAssessmentPrompt(cfg core.Config, artifacts []core.Artifact, observati
 }`)
 }
 
-func buildInjectPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation) string {
+func buildInjectPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation) (string, []string) {
 	return buildPrompt(cfg, artifacts, observations, `Return JSON with:
 {
   "scenario_summary": "string",
@@ -278,9 +310,10 @@ func buildInjectPrompt(cfg core.Config, artifacts []core.Artifact, observations 
 }`)
 }
 
-func buildPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation, schema string) string {
-	artifactSummary, _ := json.Marshal(artifacts)
-	observationSummary, _ := json.Marshal(observations)
+func buildPrompt(cfg core.Config, artifacts []core.Artifact, observations []core.Observation, schema string) (string, []string) {
+	summarizedArtifacts, summarizedObservations, warnings := summarizePromptInputs(cfg.AI, artifacts, observations)
+	artifactSummary, _ := json.Marshal(summarizedArtifacts)
+	observationSummary, _ := json.Marshal(summarizedObservations)
 	return strings.Join([]string{
 		"Mode: " + string(cfg.Mode),
 		"Title: " + cfg.Title,
@@ -292,7 +325,7 @@ func buildPrompt(cfg core.Config, artifacts []core.Artifact, observations []core
 		"Observations JSON: " + string(observationSummary),
 		"Each finding or inject item must cite evidence_refs and observation_ids. Use the supplied observations and artifacts only.",
 		schema,
-	}, "\n\n")
+	}, "\n\n"), warnings
 }
 
 func applyAssessmentDefaults(draft *core.AssessmentDraft, observations []core.Observation) {
@@ -336,4 +369,55 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func summarizePromptInputs(ai core.AIConfig, artifacts []core.Artifact, observations []core.Observation) ([]core.Artifact, []core.Observation, []string) {
+	var warnings []string
+
+	artifactLimit := ai.MaxPromptArtifacts
+	if artifactLimit <= 0 {
+		artifactLimit = len(artifacts)
+	}
+	observationLimit := ai.MaxPromptObservations
+	if observationLimit <= 0 {
+		observationLimit = len(observations)
+	}
+
+	summarizedArtifacts := artifacts
+	if len(summarizedArtifacts) > artifactLimit {
+		summarizedArtifacts = append([]core.Artifact{}, artifacts[:artifactLimit]...)
+		warnings = append(warnings, fmt.Sprintf("artifacts truncated for prompt context: %d of %d included", artifactLimit, len(artifacts)))
+	}
+	for i := range summarizedArtifacts {
+		summarizedArtifacts[i].ExtractedText = truncateForPrompt(summarizedArtifacts[i].ExtractedText, 1200)
+		if len(summarizedArtifacts[i].Metadata) > 0 {
+			trimmed := make(map[string]string, len(summarizedArtifacts[i].Metadata))
+			for key, value := range summarizedArtifacts[i].Metadata {
+				trimmed[key] = truncateForPrompt(value, 200)
+			}
+			summarizedArtifacts[i].Metadata = trimmed
+		}
+	}
+
+	summarizedObservations := observations
+	if len(summarizedObservations) > observationLimit {
+		summarizedObservations = append([]core.Observation{}, observations[:observationLimit]...)
+		warnings = append(warnings, fmt.Sprintf("observations truncated for prompt context: %d of %d included", observationLimit, len(observations)))
+	}
+	for i := range summarizedObservations {
+		summarizedObservations[i].Detail = truncateForPrompt(summarizedObservations[i].Detail, 600)
+		for j := range summarizedObservations[i].Evidence {
+			summarizedObservations[i].Evidence[j].Snippet = truncateForPrompt(summarizedObservations[i].Evidence[j].Snippet, 240)
+			summarizedObservations[i].Evidence[j].Description = truncateForPrompt(summarizedObservations[i].Evidence[j].Description, 120)
+		}
+	}
+
+	return summarizedArtifacts, summarizedObservations, warnings
+}
+
+func truncateForPrompt(in string, max int) string {
+	if len(in) <= max {
+		return in
+	}
+	return strings.TrimSpace(in[:max]) + "..."
 }
