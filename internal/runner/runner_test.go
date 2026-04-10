@@ -3,6 +3,9 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +15,7 @@ import (
 
 	"injectctl/internal/config"
 	"injectctl/internal/core"
+	"injectctl/internal/ocr"
 )
 
 func TestRunAssessmentEndToEnd(t *testing.T) {
@@ -209,6 +213,86 @@ func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
 	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
 }
 
+func TestRunAssessmentEndToEndWithRealOCRScreenshot(t *testing.T) {
+	if !ocr.New().Available() {
+		t.Skip("tesseract is not available")
+	}
+
+	server := newMockOllamaServer(t, map[string]any{
+		"executive_summary": "Draft summary from mocked Ollama.",
+		"findings": []map[string]any{
+			{
+				"id":              "finding-1",
+				"title":           "Services visible in screenshot",
+				"severity":        "low",
+				"description":     "The screenshot contains visible service names.",
+				"impact":          "The artifact can be summarized correctly.",
+				"remediation":     "Review visible services.",
+				"evidence_refs":   []string{"artifact-1:OCR text extracted from screenshot"},
+				"observation_ids": []string{"obs1"},
+			},
+		},
+	})
+	defer server.Close()
+
+	dir := t.TempDir()
+	artifactDir := filepath.Join(dir, "artifacts")
+	outDir := filepath.Join(dir, "out")
+	projectDir := filepath.Join(dir, "project")
+	manifestPath := filepath.Join(dir, "job.yaml")
+	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
+		t.Fatalf("create artifact dir: %v", err)
+	}
+	imagePath := filepath.Join(artifactDir, "screen.png")
+	writeOCRFixturePNG(t, imagePath, []string{"SSH", "HTTP"})
+	if err := os.WriteFile(manifestPath, []byte("mode: assess\ninstructions: test\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Mode = core.ModeAssess
+	cfg.Title = "Assessment Run"
+	cfg.Client = "Example Corp"
+	cfg.Environment = "Prod"
+	cfg.Classification = "TLP:AMBER"
+	cfg.Instructions = "Draft an assessment report."
+	cfg.Artifacts = []string{artifactDir}
+	cfg.AI.Endpoint = server.URL
+	cfg.AI.Profile = "fast"
+	cfg.AI.Model = "gemma4:e4b"
+	cfg.AI.FallbackModel = "gemma4:e2b"
+	cfg.Output.ProjectDir = projectDir
+
+	if err := Run(context.Background(), Options{
+		Config:       cfg,
+		InputPaths:   nil,
+		OutputDir:    outDir,
+		ManifestPath: manifestPath,
+	}); err != nil {
+		t.Fatalf("run assessment with OCR screenshot: %v", err)
+	}
+
+	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "draft_ready")
+	result := readAssessmentResult(t, filepath.Join(outDir, "assessment.json"))
+	if len(result.Artifacts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(result.Artifacts))
+	}
+	artifact := result.Artifacts[0]
+	if artifact.Metadata["ocr_status"] != "succeeded" {
+		t.Fatalf("expected OCR success, got metadata %v", artifact.Metadata)
+	}
+	if artifact.Metadata["ocr_line_count"] == "" {
+		t.Fatalf("expected OCR line count in metadata, got %v", artifact.Metadata)
+	}
+	if artifact.Metadata["image_width"] == "" || artifact.Metadata["image_height"] == "" {
+		t.Fatalf("expected image dimensions in metadata, got %v", artifact.Metadata)
+	}
+	lowerText := strings.ToLower(artifact.ExtractedText)
+	if !strings.Contains(lowerText, "ssh") && !strings.Contains(lowerText, "http") {
+		t.Fatalf("expected OCR text to contain ssh or http, got %q", artifact.ExtractedText)
+	}
+}
+
 func newMockOllamaServer(t *testing.T, responsePayload map[string]any) *httptest.Server {
 	t.Helper()
 
@@ -251,5 +335,136 @@ func assertFileContains(t *testing.T, path, substring string) {
 	}
 	if !strings.Contains(string(data), substring) {
 		t.Fatalf("expected file %q to contain %q", path, substring)
+	}
+}
+
+func readAssessmentResult(t *testing.T, path string) core.AssessmentResult {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read assessment result %q: %v", path, err)
+	}
+	var result core.AssessmentResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("decode assessment result %q: %v", path, err)
+	}
+	return result
+}
+
+var bitmapFont = map[rune][]string{
+	'H': {
+		"10001",
+		"10001",
+		"11111",
+		"10001",
+		"10001",
+		"10001",
+		"10001",
+	},
+	'P': {
+		"11110",
+		"10001",
+		"10001",
+		"11110",
+		"10000",
+		"10000",
+		"10000",
+	},
+	'S': {
+		"01111",
+		"10000",
+		"10000",
+		"01110",
+		"00001",
+		"00001",
+		"11110",
+	},
+	'T': {
+		"11111",
+		"00100",
+		"00100",
+		"00100",
+		"00100",
+		"00100",
+		"00100",
+	},
+	' ': {
+		"00000",
+		"00000",
+		"00000",
+		"00000",
+		"00000",
+		"00000",
+		"00000",
+	},
+}
+
+func writeOCRFixturePNG(t *testing.T, path string, lines []string) {
+	t.Helper()
+
+	const (
+		scale       = 14
+		glyphWidth  = 5
+		glyphHeight = 7
+		padding     = 30
+		lineGap     = 18
+	)
+
+	maxRunes := 0
+	for _, line := range lines {
+		if len([]rune(line)) > maxRunes {
+			maxRunes = len([]rune(line))
+		}
+	}
+	width := padding*2 + maxRunes*(glyphWidth*scale+scale)
+	height := padding*2 + len(lines)*(glyphHeight*scale) + (len(lines)-1)*lineGap
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	fillImage(img, color.White)
+
+	for lineIdx, line := range lines {
+		y := padding + lineIdx*(glyphHeight*scale+lineGap)
+		x := padding
+		for _, char := range line {
+			drawGlyph(img, x, y, char, scale)
+			x += glyphWidth*scale + scale
+		}
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create OCR fixture png: %v", err)
+	}
+	defer file.Close()
+
+	if err := png.Encode(file, img); err != nil {
+		t.Fatalf("encode OCR fixture png: %v", err)
+	}
+}
+
+func fillImage(img *image.RGBA, fill color.Color) {
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			img.Set(x, y, fill)
+		}
+	}
+}
+
+func drawGlyph(img *image.RGBA, startX, startY int, char rune, scale int) {
+	pattern, ok := bitmapFont[char]
+	if !ok {
+		pattern = bitmapFont[' ']
+	}
+	for row, line := range pattern {
+		for col, pixel := range line {
+			if pixel != '1' {
+				continue
+			}
+			for dy := 0; dy < scale; dy++ {
+				for dx := 0; dx < scale; dx++ {
+					img.Set(startX+col*scale+dx, startY+row*scale+dy, color.Black)
+				}
+			}
+		}
 	}
 }
