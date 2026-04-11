@@ -30,7 +30,7 @@ func TestLiveAssessmentSynthesisIntegration(t *testing.T) {
 		Temperature:    0.1,
 	})
 
-	draft, warnings, err := client.SynthesizeAssessment(context.Background(), core.Config{
+	draft, trace, warnings, err := client.SynthesizeAssessment(context.Background(), core.Config{
 		Mode:         core.ModeAssess,
 		Title:        "Integration Test",
 		Client:       "Local",
@@ -65,6 +65,9 @@ func TestLiveAssessmentSynthesisIntegration(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("live synthesis failed: %v (warnings: %v)", err, warnings)
+	}
+	if len(trace.ModelsUsed) == 0 {
+		t.Fatalf("expected live synthesis to record at least one model")
 	}
 	if draft.ExecutiveSummary == "" {
 		t.Fatalf("expected non-empty executive summary")

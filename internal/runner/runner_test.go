@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"injectctl/internal/config"
@@ -46,8 +47,8 @@ func TestRunAssessmentEndToEnd(t *testing.T) {
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
 		t.Fatalf("create artifact dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(artifactDir, "scan.nmap"), []byte("22/tcp open ssh OpenSSH 8.2p1"), 0o644); err != nil {
-		t.Fatalf("write nmap artifact: %v", err)
+	if err := os.WriteFile(filepath.Join(artifactDir, "notes.txt"), []byte("Operator note: review this artifact manually."), 0o644); err != nil {
+		t.Fatalf("write text artifact: %v", err)
 	}
 	if err := os.WriteFile(manifestPath, []byte("mode: assess\ninstructions: test\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
@@ -64,7 +65,7 @@ func TestRunAssessmentEndToEnd(t *testing.T) {
 	cfg.AI.Endpoint = server.URL
 	cfg.Output.ProjectDir = projectDir
 
-	if err := Run(context.Background(), Options{
+	if _, err := Run(context.Background(), Options{
 		Config:       cfg,
 		InputPaths:   nil,
 		OutputDir:    outDir,
@@ -73,17 +74,28 @@ func TestRunAssessmentEndToEnd(t *testing.T) {
 		t.Fatalf("run assessment: %v", err)
 	}
 
-	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "SSH exposed")
-	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "draft_ready")
-	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "executive_summary")
-	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
-	assertFileContains(t, filepath.Join(outDir, "evidence-index.md"), "Evidence Index")
-	assertFileExists(t, filepath.Join(outDir, "assessment.pdf"))
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "SSH exposed")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "draft_ready")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-data.json"), "executive_summary")
+	assertFileContains(t, filepath.Join(outDir, "assessment-evidence-index.json"), "\"artifact_id\"")
+	assertFileContains(t, filepath.Join(outDir, "assessment-evidence-index.md"), "Evidence Index")
+	assertFileExists(t, filepath.Join(outDir, "assessment-report-review.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "assessment-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
 	assertFileExists(t, filepath.Join(projectDir, "evidence-index.json"))
 	assertFileExists(t, filepath.Join(projectDir, "evidence-index.md"))
+	assertFileExists(t, filepath.Join(projectDir, "output-inventory.json"))
+	assertFileExists(t, filepath.Join(projectDir, "run-log.jsonl"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "assessment-report-draft.md"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "assessment-report-data.json"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "assessment-report-review.pdf"))
 	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"status\": \"draft_ready\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"models_used\": [")
+	assertFileContains(t, filepath.Join(projectDir, "output-inventory.json"), "\"relative_path\": \"assessment-report-draft.md\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-log.jsonl"), "\"event\":\"run_started\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-log.jsonl"), "\"event\":\"project_persisted\"")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "AI Models Used:")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "AI Requested Model:")
 }
 
 func TestRunInjectEndToEnd(t *testing.T) {
@@ -133,7 +145,7 @@ func TestRunInjectEndToEnd(t *testing.T) {
 	cfg.AI.Endpoint = server.URL
 	cfg.Output.ProjectDir = projectDir
 
-	if err := Run(context.Background(), Options{
+	if _, err := Run(context.Background(), Options{
 		Config:       cfg,
 		InputPaths:   nil,
 		OutputDir:    outDir,
@@ -142,17 +154,28 @@ func TestRunInjectEndToEnd(t *testing.T) {
 		t.Fatalf("run inject: %v", err)
 	}
 
-	assertFileContains(t, filepath.Join(outDir, "inject.md"), "Suspicious SSH Alert")
-	assertFileContains(t, filepath.Join(outDir, "inject.md"), "draft_ready")
-	assertFileContains(t, filepath.Join(outDir, "inject.json"), "scenario_summary")
-	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
-	assertFileContains(t, filepath.Join(outDir, "evidence-index.md"), "Evidence Index")
-	assertFileExists(t, filepath.Join(outDir, "inject.pdf"))
+	assertFileContains(t, filepath.Join(outDir, "inject-pack-draft.md"), "Suspicious SSH Alert")
+	assertFileContains(t, filepath.Join(outDir, "inject-pack-draft.md"), "draft_ready")
+	assertFileContains(t, filepath.Join(outDir, "inject-pack-data.json"), "scenario_summary")
+	assertFileContains(t, filepath.Join(outDir, "inject-evidence-index.json"), "\"artifact_id\"")
+	assertFileContains(t, filepath.Join(outDir, "inject-evidence-index.md"), "Evidence Index")
+	assertFileExists(t, filepath.Join(outDir, "inject-pack-review.pdf"))
 	assertFileExists(t, filepath.Join(projectDir, "inject-run.json"))
 	assertFileExists(t, filepath.Join(projectDir, "job.yaml"))
 	assertFileExists(t, filepath.Join(projectDir, "evidence-index.json"))
 	assertFileExists(t, filepath.Join(projectDir, "evidence-index.md"))
+	assertFileExists(t, filepath.Join(projectDir, "output-inventory.json"))
+	assertFileExists(t, filepath.Join(projectDir, "run-log.jsonl"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "inject-pack-draft.md"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "inject-pack-data.json"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "inject-pack-review.pdf"))
 	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"status\": \"draft_ready\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"models_used\": [")
+	assertFileContains(t, filepath.Join(projectDir, "output-inventory.json"), "\"relative_path\": \"inject-pack-draft.md\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-log.jsonl"), "\"event\":\"run_started\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-log.jsonl"), "\"event\":\"project_persisted\"")
+	assertFileContains(t, filepath.Join(outDir, "inject-pack-draft.md"), "AI Models Used:")
+	assertFileContains(t, filepath.Join(outDir, "inject-pack-draft.md"), "AI Requested Model:")
 }
 
 func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
@@ -185,7 +208,78 @@ func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
 		t.Fatalf("create artifact dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(artifactDir, "scan.nmap"), []byte("22/tcp open ssh OpenSSH 8.2p1"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(artifactDir, "notes.txt"), []byte("Operator note: review this artifact manually."), 0o644); err != nil {
+		t.Fatalf("write text artifact: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("mode: assess\ninstructions: test\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Mode = core.ModeAssess
+	cfg.Title = "Assessment Run"
+	cfg.Client = "Example Corp"
+	cfg.Environment = "Prod"
+	cfg.Classification = "TLP:AMBER"
+	cfg.Instructions = "Draft an assessment report."
+	cfg.Artifacts = []string{artifactDir}
+	cfg.AI.Endpoint = server.URL
+	cfg.Output.ProjectDir = projectDir
+
+	if _, err := Run(context.Background(), Options{
+		Config:       cfg,
+		InputPaths:   nil,
+		OutputDir:    outDir,
+		ManifestPath: manifestPath,
+	}); err != nil {
+		t.Fatalf("run assessment: %v", err)
+	}
+
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "evidence_only")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "Generation Error")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-data.json"), "\"status\": \"evidence_only\"")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-data.json"), "\"error_report\"")
+	assertFileContains(t, filepath.Join(outDir, "assessment-evidence-index.json"), "\"artifact_id\"")
+	assertFileExists(t, filepath.Join(projectDir, "output-inventory.json"))
+	assertFileExists(t, filepath.Join(projectDir, "run-log.jsonl"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "assessment-report-draft.md"))
+	assertFileExists(t, filepath.Join(projectDir, "outputs", "assessment-report-data.json"))
+}
+
+func TestRunAssessmentUsesDeterministicFallbackDraftOnSemanticallyEmptyModelOutput(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]string{
+					{"name": "gemma4:26b"},
+					{"name": "gemma4:e4b"},
+				},
+			})
+		case "/api/generate":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": mustJSON(map[string]any{
+					"executive_summary": "short summary",
+					"findings":          []map[string]any{},
+				}),
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	artifactDir := filepath.Join(dir, "artifacts")
+	outDir := filepath.Join(dir, "out")
+	projectDir := filepath.Join(dir, "project")
+	manifestPath := filepath.Join(dir, "job.yaml")
+	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
+		t.Fatalf("create artifact dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(artifactDir, "scan.nmap"), []byte("22/tcp open ssh OpenSSH 8.2p1\n80/tcp open http Apache httpd 2.4.41"), 0o644); err != nil {
 		t.Fatalf("write nmap artifact: %v", err)
 	}
 	if err := os.WriteFile(manifestPath, []byte("mode: assess\ninstructions: test\n"), 0o644); err != nil {
@@ -203,7 +297,7 @@ func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
 	cfg.AI.Endpoint = server.URL
 	cfg.Output.ProjectDir = projectDir
 
-	if err := Run(context.Background(), Options{
+	if _, err := Run(context.Background(), Options{
 		Config:       cfg,
 		InputPaths:   nil,
 		OutputDir:    outDir,
@@ -212,11 +306,10 @@ func TestRunAssessmentFallsBackToEvidenceOnlyOnSynthesisFailure(t *testing.T) {
 		t.Fatalf("run assessment: %v", err)
 	}
 
-	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "evidence_only")
-	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "Generation Error")
-	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "\"status\": \"evidence_only\"")
-	assertFileContains(t, filepath.Join(outDir, "assessment.json"), "\"error_report\"")
-	assertFileContains(t, filepath.Join(outDir, "evidence-index.json"), "\"artifact_id\"")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "draft_ready")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "Exposed Network Services")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"status\": \"draft_ready\"")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "deterministic fallback draft")
 }
 
 func TestRunAssessmentEndToEndWithRealOCRScreenshot(t *testing.T) {
@@ -269,7 +362,7 @@ func TestRunAssessmentEndToEndWithRealOCRScreenshot(t *testing.T) {
 	cfg.AI.FallbackModel = "gemma4:e2b"
 	cfg.Output.ProjectDir = projectDir
 
-	if err := Run(context.Background(), Options{
+	if _, err := Run(context.Background(), Options{
 		Config:       cfg,
 		InputPaths:   nil,
 		OutputDir:    outDir,
@@ -278,8 +371,8 @@ func TestRunAssessmentEndToEndWithRealOCRScreenshot(t *testing.T) {
 		t.Fatalf("run assessment with OCR screenshot: %v", err)
 	}
 
-	assertFileContains(t, filepath.Join(outDir, "assessment.md"), "draft_ready")
-	result := readAssessmentResult(t, filepath.Join(outDir, "assessment.json"))
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "draft_ready")
+	result := readAssessmentResult(t, filepath.Join(outDir, "assessment-report-data.json"))
 	if len(result.Artifacts) != 1 {
 		t.Fatalf("expected 1 artifact, got %d", len(result.Artifacts))
 	}
@@ -297,6 +390,112 @@ func TestRunAssessmentEndToEndWithRealOCRScreenshot(t *testing.T) {
 	if !strings.Contains(lowerText, "ssh") && !strings.Contains(lowerText, "http") {
 		t.Fatalf("expected OCR text to contain ssh or http, got %q", artifact.ExtractedText)
 	}
+}
+
+func TestRunAssessmentEndToEndWithChunkedSynthesis(t *testing.T) {
+	t.Parallel()
+
+	server := newQueuedMockOllamaServer([]string{
+		mustJSON(map[string]any{
+			"executive_summary": "Chunk one summary",
+			"findings": []map[string]any{
+				{
+					"id":              "finding-1",
+					"title":           "SSH exposed",
+					"severity":        "medium",
+					"description":     "SSH was detected.",
+					"impact":          "Remote access surface exists.",
+					"remediation":     "Restrict SSH access.",
+					"evidence_refs":   []string{"artifact-1:ssh evidence"},
+					"observation_ids": []string{"obs1"},
+				},
+			},
+		}),
+		mustJSON(map[string]any{
+			"executive_summary": "Chunk two summary",
+			"findings": []map[string]any{
+				{
+					"id":              "finding-2",
+					"title":           "HTTP exposed",
+					"severity":        "low",
+					"description":     "HTTP was detected.",
+					"impact":          "Web surface exists.",
+					"remediation":     "Review web exposure.",
+					"evidence_refs":   []string{"artifact-2:http evidence"},
+					"observation_ids": []string{"obs2"},
+				},
+			},
+		}),
+		mustJSON(map[string]any{
+			"executive_summary": "Merged chunked summary",
+			"findings": []map[string]any{
+				{
+					"id":              "finding-1",
+					"title":           "SSH exposed",
+					"severity":        "medium",
+					"description":     "SSH was detected.",
+					"impact":          "Remote access surface exists.",
+					"remediation":     "Restrict SSH access.",
+					"evidence_refs":   []string{"artifact-1:ssh evidence"},
+					"observation_ids": []string{"obs1"},
+				},
+				{
+					"id":              "finding-2",
+					"title":           "HTTP exposed",
+					"severity":        "low",
+					"description":     "HTTP was detected.",
+					"impact":          "Web surface exists.",
+					"remediation":     "Review web exposure.",
+					"evidence_refs":   []string{"artifact-2:http evidence"},
+					"observation_ids": []string{"obs2"},
+				},
+			},
+		}),
+	})
+	defer server.Close()
+
+	dir := t.TempDir()
+	artifactDir := filepath.Join(dir, "artifacts")
+	outDir := filepath.Join(dir, "out")
+	projectDir := filepath.Join(dir, "project")
+	manifestPath := filepath.Join(dir, "job.yaml")
+	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
+		t.Fatalf("create artifact dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(artifactDir, "scan.nmap"), []byte("22/tcp open ssh OpenSSH 8.2p1\n80/tcp open http Apache httpd 2.4.41"), 0o644); err != nil {
+		t.Fatalf("write nmap artifact: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("mode: assess\ninstructions: test\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Mode = core.ModeAssess
+	cfg.Title = "Chunked Assessment Run"
+	cfg.Client = "Example Corp"
+	cfg.Environment = "Prod"
+	cfg.Classification = "TLP:AMBER"
+	cfg.Instructions = "Draft an assessment report."
+	cfg.Artifacts = []string{artifactDir}
+	cfg.AI.Endpoint = server.URL
+	cfg.AI.MaxPromptObservations = 1
+	cfg.AI.MaxPromptArtifacts = 2
+	cfg.Output.ProjectDir = projectDir
+
+	if _, err := Run(context.Background(), Options{
+		Config:       cfg,
+		InputPaths:   nil,
+		OutputDir:    outDir,
+		ManifestPath: manifestPath,
+	}); err != nil {
+		t.Fatalf("run chunked assessment: %v", err)
+	}
+
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "SSH exposed")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "HTTP exposed")
+	assertFileContains(t, filepath.Join(outDir, "assessment-report-draft.md"), "assessment_batch_1")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "assessment synthesis used 2 prompt batches")
+	assertFileContains(t, filepath.Join(projectDir, "run-summary.json"), "\"batch_count\": 2")
 }
 
 func newMockOllamaServer(t *testing.T, responsePayload map[string]any) *httptest.Server {
@@ -324,6 +523,40 @@ func newMockOllamaServer(t *testing.T, responsePayload map[string]any) *httptest
 func mustJSON(v any) string {
 	data, _ := json.Marshal(v)
 	return string(data)
+}
+
+func newQueuedMockOllamaServer(responses []string) *httptest.Server {
+	var (
+		mu    sync.Mutex
+		index int
+	)
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]string{
+					{"name": "gemma4:26b"},
+					{"name": "gemma4:e4b"},
+				},
+			})
+		case "/api/generate":
+			mu.Lock()
+			if index >= len(responses) {
+				mu.Unlock()
+				http.Error(w, "no queued response available", http.StatusInternalServerError)
+				return
+			}
+			response := responses[index]
+			index++
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": response,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
 }
 
 func assertFileExists(t *testing.T, path string) {

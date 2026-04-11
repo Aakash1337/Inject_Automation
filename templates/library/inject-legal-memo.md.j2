@@ -1,0 +1,61 @@
+# {{ config.title }} Legal Inject Memo
+
+**Team:** {{ config.client }}
+**Matter:** {{ config.title }}
+**Classification:** {{ config.classification }}
+**Environment:** {{ config.environment }}
+
+## Memo Purpose
+
+This legal and compliance inject memo is intended for counsel, privacy, compliance, and risk stakeholders.
+
+{% if draft.scenario_summary %}
+## Situation Overview
+
+{{ draft.scenario_summary }}
+{% endif %}
+
+## Legal and Compliance Questions
+
+- What facts are sufficiently supported by the evidence?
+- Do the observed conditions trigger contractual, regulatory, or notification review?
+- What decisions must legal counsel coordinate with leadership and incident response?
+
+## Injects for Counsel Review
+
+{% if draft.items %}
+{% for item in draft.items %}
+### {{ item.title }}
+
+**Inject ID:** {{ item.id }}
+**Audience:** {{ item.audience }}
+**Delivery Channel:** {{ item.channel }}
+**Trigger:** {{ item.trigger }}
+**Expected Action:** {{ item.expected_action }}
+
+#### Memo Body
+
+{{ item.body }}
+
+#### Evidence Basis
+
+- Evidence References: {{ item.evidence_refs|join:", " }}
+- Observation Links: {{ item.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No inject items were generated.
+{% endif %}
+
+## Supporting Observations
+
+{% if observations %}
+{% for observation in observations %}
+### {{ observation.title }}
+
+{{ observation.detail }}
+
+{% endfor %}
+{% else %}
+No supporting observations were available.
+{% endif %}

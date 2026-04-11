@@ -126,6 +126,9 @@ func ResolvePaths(cfg *core.Config, baseDir string) {
 	if cfg.Template != "" && !filepath.IsAbs(cfg.Template) {
 		cfg.Template = filepath.Join(baseDir, cfg.Template)
 	}
+	if cfg.TemplateDir != "" && !filepath.IsAbs(cfg.TemplateDir) {
+		cfg.TemplateDir = filepath.Join(baseDir, cfg.TemplateDir)
+	}
 	if cfg.AI.PromptDir != "" && !filepath.IsAbs(cfg.AI.PromptDir) {
 		cfg.AI.PromptDir = filepath.Join(baseDir, cfg.AI.PromptDir)
 	}

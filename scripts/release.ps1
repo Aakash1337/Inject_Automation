@@ -66,6 +66,7 @@ try {
 
     $targets = @(
         @{ GOOS = "windows"; GOARCH = "amd64"; Suffix = ".exe" },
+        @{ GOOS = "windows"; GOARCH = "arm64"; Suffix = ".exe" },
         @{ GOOS = "linux"; GOARCH = "amd64"; Suffix = "" },
         @{ GOOS = "linux"; GOARCH = "arm64"; Suffix = "" },
         @{ GOOS = "darwin"; GOARCH = "amd64"; Suffix = "" },

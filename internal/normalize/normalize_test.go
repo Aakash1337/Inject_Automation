@@ -120,3 +120,66 @@ func TestRedactInjectResultInvalidRegexFallsBackToLiteral(t *testing.T) {
 		t.Fatalf("expected summary to be redacted, got %q", result.Draft.ScenarioSummary)
 	}
 }
+
+func TestConflictWarningsDetectHostScopedContradictions(t *testing.T) {
+	t.Parallel()
+
+	warnings := ConflictWarnings([]core.Observation{
+		{
+			Title:    "Vulnerability detected",
+			Detail:   "web01:443 TLS certificate expired",
+			Category: "vulnerability",
+			Severity: "high",
+			Source: map[string]string{
+				"tool": "nessus",
+				"host": "web01",
+			},
+		},
+		{
+			Title:    "Vulnerability detected",
+			Detail:   "web01:443 TLS certificate valid",
+			Category: "vulnerability",
+			Severity: "info",
+			Source: map[string]string{
+				"tool": "nessus",
+				"host": "web01",
+			},
+		},
+	})
+
+	if len(warnings) != 1 {
+		t.Fatalf("expected one conflict warning, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "web01:443") {
+		t.Fatalf("expected host and port in warning, got %v", warnings)
+	}
+}
+
+func TestConflictWarningsIgnoreIndependentObservations(t *testing.T) {
+	t.Parallel()
+
+	warnings := ConflictWarnings([]core.Observation{
+		{
+			Title:    "Open service detected",
+			Detail:   "22/tcp open ssh OpenSSH 8.2p1",
+			Category: "network",
+			Severity: "medium",
+			Source: map[string]string{
+				"tool": "nmap",
+			},
+		},
+		{
+			Title:    "Open service detected",
+			Detail:   "80/tcp open http Apache httpd",
+			Category: "network",
+			Severity: "medium",
+			Source: map[string]string{
+				"tool": "nmap",
+			},
+		},
+	})
+
+	if len(warnings) != 0 {
+		t.Fatalf("expected no conflict warnings, got %v", warnings)
+	}
+}

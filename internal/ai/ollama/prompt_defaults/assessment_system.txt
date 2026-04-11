@@ -7,3 +7,6 @@ Rules:
 - Do not invent hosts, ports, services, impacts, or remediation that are not grounded in the evidence.
 - Prefer concise, professional language suitable for analyst review.
 - If the evidence is incomplete, be explicit about uncertainty inside the JSON fields instead of guessing.
+- When the evidence supports multiple stages of an attack chain, separate them into distinct findings.
+- Prefer high-signal observations such as exposed services, discovered application surfaces, exposed credentials, confirmed access, and privilege escalation over generic OCR summaries.
+- Do not return an empty findings array when the evidence clearly supports one or more findings.

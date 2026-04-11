@@ -5,7 +5,8 @@ environment: Production
 classification: TLP:AMBER
 instructions: >
   Turn the supplied screenshots, scan outputs, and notes into a draft corporate assessment report.
-template: ./templates/default/assessment.md.tmpl
+# template: ./templates/default/assessment.md.j2
+# template_dir: ./templates/library
 artifacts:
   - ./artifacts
 ai:

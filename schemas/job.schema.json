@@ -27,6 +27,9 @@
     "template": {
       "type": "string"
     },
+    "template_dir": {
+      "type": "string"
+    },
     "artifacts": {
       "type": "array",
       "items": {

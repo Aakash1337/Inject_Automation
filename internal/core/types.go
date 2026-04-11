@@ -16,7 +16,8 @@ type Config struct {
 	Environment    string       `json:"environment" yaml:"environment"`
 	Classification string       `json:"classification" yaml:"classification"`
 	Instructions   string       `json:"instructions" yaml:"instructions"`
-	Template       string       `json:"template" yaml:"template"`
+	Template       string       `json:"template,omitempty" yaml:"template,omitempty"`
+	TemplateDir    string       `json:"template_dir,omitempty" yaml:"template_dir,omitempty"`
 	Artifacts      []string     `json:"artifacts" yaml:"artifacts"`
 	AI             AIConfig     `json:"ai" yaml:"ai"`
 	Output         OutputConfig `json:"output" yaml:"output"`
@@ -113,8 +114,22 @@ type RunRecord struct {
 	CompletedAt time.Time     `json:"completed_at"`
 	Duration    time.Duration `json:"duration"`
 	Model       string        `json:"model"`
+	AI          *RunAITrace   `json:"ai,omitempty"`
 	Warnings    []string      `json:"warnings,omitempty"`
 	Errors      []string      `json:"errors,omitempty"`
+}
+
+type RunAITrace struct {
+	RequestedModel string       `json:"requested_model,omitempty"`
+	FallbackModel  string       `json:"fallback_model,omitempty"`
+	ModelsUsed     []string     `json:"models_used,omitempty"`
+	Stages         []RunAIStage `json:"stages,omitempty"`
+	BatchCount     int          `json:"batch_count,omitempty"`
+}
+
+type RunAIStage struct {
+	Name  string `json:"name"`
+	Model string `json:"model"`
 }
 
 type ErrorReport struct {
@@ -183,4 +198,15 @@ type DoctorStatus struct {
 	OCRAvailable    bool     `json:"ocr_available"`
 	Warnings        []string `json:"warnings,omitempty"`
 	Errors          []string `json:"errors,omitempty"`
+}
+
+func ModeOutputBase(mode Mode) string {
+	switch mode {
+	case ModeAssess:
+		return "assessment"
+	case ModeInject:
+		return "inject"
+	default:
+		return string(mode)
+	}
 }

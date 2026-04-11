@@ -5,7 +5,8 @@ environment: Production
 classification: TLP:AMBER
 instructions: >
   Turn the supplied evidence into draft injects for a corporate blue-team exercise.
-template: ./templates/default/inject.md.tmpl
+# template: ./templates/default/inject.md.j2
+# template_dir: ./templates/library
 artifacts:
   - ./artifacts
 ai:

@@ -15,7 +15,8 @@ func Build(ctx context.Context, client *ollama.Client, cfg core.Config, artifact
 		return nil, fmt.Errorf("ollama is not reachable at %s", cfg.AI.Endpoint)
 	}
 
-	draft, warnings, synthErr := client.SynthesizeInject(ctx, cfg, artifacts, observations)
+	draft, trace, warnings, synthErr := client.SynthesizeInject(ctx, cfg, artifacts, observations)
+	run.AI = &trace
 	run.Warnings = append(run.Warnings, warnings...)
 	if synthErr != nil {
 		run.Errors = append(run.Errors, "inject synthesis failed; evidence-only error report emitted")

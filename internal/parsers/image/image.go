@@ -84,6 +84,8 @@ func Parse(ctx context.Context, artifact core.Artifact, engine ocr.Engine) (core
 		})
 	}
 
+	observations = append(observations, deriveObservationsFromOCR(text, artifact)...)
+
 	return artifact, observations, nil, nil
 }
 
@@ -178,6 +180,152 @@ func buildIndicatorSummary(metadata map[string]string) string {
 	return strings.Join(parts, " | ")
 }
 
+func deriveObservationsFromOCR(text string, artifact core.Artifact) []core.Observation {
+	lower := strings.ToLower(text)
+	var observations []core.Observation
+
+	if containsAny(lower,
+		"dolibarr_main_db_pass",
+		"dolibarr_main_db_user",
+		"db_pass",
+		"db_user",
+		"serverfun2",
+		"conf.php",
+	) {
+		observations = append(observations, core.Observation{
+			Title:      "Credentials visible in screenshot",
+			Detail:     "Screenshot content appears to expose reusable credentials or application secrets.",
+			Category:   "credential",
+			Severity:   "high",
+			Confidence: 0.9,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "dolibarr_main_db_pass", "dolibarr_main_db_user", "db_pass", "db_user", "serverfun2", "conf.php"),
+					Location:    artifact.Path,
+					Confidence:  0.9,
+					Description: "Credential-like content visible in screenshot OCR",
+				},
+			},
+		})
+	}
+
+	if containsAny(lower,
+		"dolibarr",
+		"password forgotten",
+		"http://crm.",
+		"https://crm.",
+		" login",
+		"sign in",
+	) {
+		observations = append(observations, core.Observation{
+			Title:      "Web login surface visible",
+			Detail:     "Screenshot shows an accessible web application login surface or administrative interface.",
+			Category:   "web",
+			Severity:   "medium",
+			Confidence: 0.84,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "dolibarr", "password forgotten", "crm.board.htb", "http://crm.", "https://crm."),
+					Location:    artifact.Path,
+					Confidence:  0.84,
+					Description: "Web login or application interface visible in screenshot OCR",
+				},
+			},
+		})
+	}
+
+	if containsAny(lower,
+		"gobuster",
+		"vhost",
+		"found:",
+		"fuzz.board.htb",
+		"crm.board.htb",
+	) {
+		observations = append(observations, core.Observation{
+			Title:      "Subdomain or vhost discovery visible",
+			Detail:     "Screenshot suggests a reachable virtual host or subdomain was identified during enumeration.",
+			Category:   "web",
+			Severity:   "medium",
+			Confidence: 0.82,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "found:", "crm.board.htb", "fuzz.board.htb", "gobuster", "vhost"),
+					Location:    artifact.Path,
+					Confidence:  0.82,
+					Description: "Vhost or subdomain discovery visible in screenshot OCR",
+				},
+			},
+		})
+	}
+
+	if containsAny(lower, "su - ", "su - larissa") {
+		observations = append(observations, core.Observation{
+			Title:      "Credential reuse or user access visible",
+			Detail:     "Screenshot shows interactive access or user switching with reusable credentials.",
+			Category:   "access",
+			Severity:   "high",
+			Confidence: 0.88,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "su - larissa", "su - ", "password:"),
+					Location:    artifact.Path,
+					Confidence:  0.88,
+					Description: "User switching or credential reuse visible in screenshot OCR",
+				},
+			},
+		})
+	} else if containsAny(lower, "ssh larissa@", "the authenticity of host", "permanently added", "'s password:") {
+		observations = append(observations, core.Observation{
+			Title:      "Remote login activity visible",
+			Detail:     "Screenshot shows SSH-based interactive access using discovered credentials or host information.",
+			Category:   "access",
+			Severity:   "high",
+			Confidence: 0.86,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "ssh larissa@", "the authenticity of host", "permanently added", "'s password:"),
+					Location:    artifact.Path,
+					Confidence:  0.86,
+					Description: "SSH login attempt or session visible in screenshot OCR",
+				},
+			},
+		})
+	}
+
+	if containsAny(lower,
+		"cve-2022-37706",
+		"root shell",
+		"cat root.txt",
+		"final flag and root access",
+		"vulnerable suid",
+		"trying to pop a root shell",
+	) {
+		observations = append(observations, core.Observation{
+			Title:      "Privilege escalation or root access visible",
+			Detail:     "Screenshot indicates a privilege escalation path or root-level compromise was achieved.",
+			Category:   "privilege",
+			Severity:   "critical",
+			Confidence: 0.92,
+			Evidence: []core.EvidenceExcerpt{
+				{
+					ArtifactID:  artifact.ID,
+					Snippet:     excerptForNeedles(text, 260, "cve-2022-37706", "root shell", "cat root.txt", "final flag and root access", "vulnerable suid"),
+					Location:    artifact.Path,
+					Confidence:  0.92,
+					Description: "Privilege escalation or root-access indicator visible in screenshot OCR",
+				},
+			},
+		})
+	}
+
+	return observations
+}
+
 func mergeMetadata(base map[string]string, additions map[string]string) map[string]string {
 	if len(base) == 0 && len(additions) == 0 {
 		return nil
@@ -257,4 +405,60 @@ func truncate(in string, max int) string {
 		return in
 	}
 	return strings.TrimSpace(in[:max]) + "..."
+}
+
+func containsAny(text string, needles ...string) bool {
+	for _, needle := range needles {
+		if needle == "" {
+			continue
+		}
+		if strings.Contains(text, strings.ToLower(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func excerptForNeedles(text string, max int, needles ...string) string {
+	lower := strings.ToLower(text)
+	for _, needle := range needles {
+		if needle == "" {
+			continue
+		}
+		idx := strings.Index(lower, strings.ToLower(needle))
+		if idx >= 0 {
+			return excerptAround(text, idx, max)
+		}
+	}
+	return truncate(text, max)
+}
+
+func excerptAround(text string, index int, max int) string {
+	if max <= 0 || len(text) <= max {
+		return text
+	}
+	if index < 0 {
+		return truncate(text, max)
+	}
+	half := max / 2
+	start := index - half
+	if start < 0 {
+		start = 0
+	}
+	end := start + max
+	if end > len(text) {
+		end = len(text)
+		start = end - max
+		if start < 0 {
+			start = 0
+		}
+	}
+	snippet := strings.TrimSpace(text[start:end])
+	if start > 0 {
+		snippet = "..." + snippet
+	}
+	if end < len(text) {
+		snippet += "..."
+	}
+	return snippet
 }

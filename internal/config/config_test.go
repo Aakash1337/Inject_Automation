@@ -77,7 +77,8 @@ func TestResolvePathsMakesRelativeEntriesAbsolute(t *testing.T) {
 	t.Parallel()
 
 	cfg := core.Config{
-		Template: "templates/default/assessment.md.tmpl",
+		Template:    "templates/default/assessment.md.tmpl",
+		TemplateDir: "templates/custom",
 		AI: core.AIConfig{
 			PromptDir: "prompts",
 		},
@@ -93,6 +94,9 @@ func TestResolvePathsMakesRelativeEntriesAbsolute(t *testing.T) {
 
 	if cfg.Template != filepath.Join("C:\\repo", "templates/default/assessment.md.tmpl") {
 		t.Fatalf("unexpected template path: %q", cfg.Template)
+	}
+	if cfg.TemplateDir != filepath.Join("C:\\repo", "templates/custom") {
+		t.Fatalf("unexpected template dir: %q", cfg.TemplateDir)
 	}
 	if cfg.AI.PromptDir != filepath.Join("C:\\repo", "prompts") {
 		t.Fatalf("unexpected prompt dir: %q", cfg.AI.PromptDir)

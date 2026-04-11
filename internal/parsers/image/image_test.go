@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"injectctl/internal/core"
@@ -75,6 +76,161 @@ func TestParseEnrichesImageMetadataAndObservations(t *testing.T) {
 	}
 	if observations[1].Title != "Indicators detected in screenshot" {
 		t.Fatalf("unexpected secondary observation title: %q", observations[1].Title)
+	}
+}
+
+func TestParseDerivesCredentialAndPrivilegeObservations(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fixture.png")
+	writeSolidPNG(t, path, 400, 220)
+
+	artifact, observations, warnings, err := Parse(context.Background(), core.Artifact{
+		ID:   "artifact-1",
+		Path: path,
+		Kind: core.ArtifactImage,
+	}, stubOCR{
+		available: true,
+		text:      "db_pass='serverfun2$2023!!'\nsu - larissa\nssh larissa@10.129.92.185\nCVE-2022-37706\ncat root.txt",
+	})
+	if err != nil {
+		t.Fatalf("parse image artifact: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+	if artifact.Metadata["ocr_status"] != "succeeded" {
+		t.Fatalf("expected successful OCR status, got %q", artifact.Metadata["ocr_status"])
+	}
+
+	var titles []string
+	for _, observation := range observations {
+		titles = append(titles, observation.Title)
+	}
+	expected := []string{
+		"Credentials visible in screenshot",
+		"Credential reuse or user access visible",
+		"Privilege escalation or root access visible",
+	}
+	for _, title := range expected {
+		found := false
+		for _, actual := range titles {
+			if actual == title {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected derived observation %q, got %v", title, titles)
+		}
+	}
+}
+
+func TestParseDerivesObservationsFromNoisyRealWorldOCR(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fixture.png")
+	writeSolidPNG(t, path, 640, 360)
+
+	text := strings.Join([]string{
+		"[x]$ gobuster vhost -u http://board.htb/ -w",
+		"Found: crm.board.htb Status: 200 [Size: 6360]",
+		"O & http://crm.board.htb/",
+		"Dolibart",
+		"Password forgotten? - Need help or support?",
+		"$dolibarr_main_db_user='dolibarrowner' ;",
+		"$dolibarr_main_db_pass='serverfun2$2023!!';",
+		"www-data@boardlight$ su - larissa",
+		"Password: serverfun2$2023!!",
+		"ssh larissa@10.129.92.185",
+		"CVE-2022-37706",
+		"[+] Enjoy the root shell :)",
+		"final flag and root access",
+	}, "\n")
+
+	_, observations, warnings, err := Parse(context.Background(), core.Artifact{
+		ID:   "artifact-1",
+		Path: path,
+		Kind: core.ArtifactImage,
+	}, stubOCR{
+		available: true,
+		text:      text,
+	})
+	if err != nil {
+		t.Fatalf("parse image artifact: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+
+	expectedTitles := []string{
+		"Subdomain or vhost discovery visible",
+		"Web login surface visible",
+		"Credentials visible in screenshot",
+		"Credential reuse or user access visible",
+		"Privilege escalation or root access visible",
+	}
+
+	var titles []string
+	for _, observation := range observations {
+		titles = append(titles, observation.Title)
+	}
+	for _, expected := range expectedTitles {
+		found := false
+		for _, actual := range titles {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected derived observation %q, got %v", expected, titles)
+		}
+	}
+}
+
+func TestParseDoesNotConfuseVhostDiscoveryWithLoginSurface(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fixture.png")
+	writeSolidPNG(t, path, 640, 240)
+
+	_, observations, warnings, err := Parse(context.Background(), core.Artifact{
+		ID:   "artifact-1",
+		Path: path,
+		Kind: core.ArtifactImage,
+	}, stubOCR{
+		available: true,
+		text:      "[x]$ gobuster vhost -u http://board.htb/ -w\nFound: crm.board.htb Status: 200 [Size: 6360]",
+	})
+	if err != nil {
+		t.Fatalf("parse image artifact: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+
+	var titles []string
+	for _, observation := range observations {
+		titles = append(titles, observation.Title)
+	}
+	for _, title := range titles {
+		if title == "Web login surface visible" {
+			t.Fatalf("did not expect login-surface observation for pure vhost discovery, got %v", titles)
+		}
+	}
+	foundVhost := false
+	for _, title := range titles {
+		if title == "Subdomain or vhost discovery visible" {
+			foundVhost = true
+			break
+		}
+	}
+	if !foundVhost {
+		t.Fatalf("expected vhost discovery observation, got %v", titles)
 	}
 }
 

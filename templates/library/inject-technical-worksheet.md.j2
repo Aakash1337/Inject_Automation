@@ -1,0 +1,57 @@
+# {{ config.title }} Technical Inject Worksheet
+
+**Team:** {{ config.client }}
+**Exercise:** {{ config.title }}
+**Classification:** {{ config.classification }}
+**Environment:** {{ config.environment }}
+
+## Technical Scenario Summary
+
+{% if draft.scenario_summary %}
+{{ draft.scenario_summary }}
+{% else %}
+No technical scenario summary was generated.
+{% endif %}
+
+## Operator Worksheet
+
+{% if draft.items %}
+{% for item in draft.items %}
+### {{ item.title }}
+
+**Inject ID:** {{ item.id }}
+**Audience:** {{ item.audience }}
+**Channel:** {{ item.channel }}
+**Trigger Condition:** {{ item.trigger }}
+**Expected Technical Action:** {{ item.expected_action }}
+
+#### Inject Content
+
+{{ item.body }}
+
+#### Evidence Mapping
+
+- Evidence References: {{ item.evidence_refs|join:", " }}
+- Observation Links: {{ item.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No inject items were generated.
+{% endif %}
+
+## Technical Observations
+
+{% if observations %}
+{% for observation in observations %}
+### {{ observation.id }} - {{ observation.title }}
+
+{{ observation.detail }}
+
+**Category:** {{ observation.category }}
+**Severity:** {{ observation.severity }}
+**Confidence:** {{ observation.confidence }}
+
+{% endfor %}
+{% else %}
+No technical observations were available.
+{% endif %}

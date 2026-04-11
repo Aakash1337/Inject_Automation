@@ -1,0 +1,7 @@
+{
+  "name": "Legal Inject Memo",
+  "description": "Legal and compliance inject template for notification review, counsel coordination, and evidence-backed decision support.",
+  "mode": "inject",
+  "tags": ["inject", "legal", "compliance", "privacy", "notification", "counsel"],
+  "priority": 1
+}

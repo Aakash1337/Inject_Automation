@@ -2,6 +2,9 @@ out/
 /project/
 dist/
 bin/
+artifacts/
+job.yaml
 *.exe
+!injectctl.exe
 *.test
 *.out

@@ -1,0 +1,117 @@
+# {{ config.client }} IR Report
+
+**Report Title:** {{ config.title }}
+**Environment:** {{ config.environment }}
+**Classification:** {{ config.classification }}
+**Status:** {{ status }}
+
+{% if draft.executive_summary %}
+## Summary
+
+{{ draft.executive_summary }}
+{% else %}
+## Summary
+
+No executive summary was generated. Review the findings and evidence sections below.
+{% endif %}
+
+## Vulnerability
+
+{% if draft.findings %}
+{% for finding in draft.findings %}
+### {{ finding.title }}{% if finding.severity %} ({{ finding.severity }}){% endif %}
+
+#### Explanation
+
+{{ finding.description }}
+
+#### Evidence
+
+- Impact: {{ finding.impact }}
+- Remediation: {{ finding.remediation }}
+- Evidence References: {{ finding.evidence_refs|join:", " }}
+- Observation Links: {{ finding.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No findings were generated. Review the observations section for extracted evidence.
+{% endif %}
+
+## Initial Access
+
+{% if observations %}
+{% for observation in observations %}
+### {{ observation.title }}
+
+{{ observation.detail }}
+
+**Category:** {{ observation.category }}
+**Confidence:** {{ observation.confidence }}
+{% if observation.evidence %}
+**Evidence Snippets:**
+{% for excerpt in observation.evidence %}
+- {{ excerpt.artifact_id }} | {{ excerpt.location }} | {{ excerpt.snippet }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+No normalized observations were available for this run.
+{% endif %}
+
+## Impact
+
+{% if draft.findings %}
+{% for finding in draft.findings %}
+### {{ finding.title }}
+
+{{ finding.impact }}
+
+{% endfor %}
+{% else %}
+Impact could not be generated because no findings were available.
+{% endif %}
+
+## Eradication
+
+Containment and eradication actions should be aligned to the evidence-linked findings below.
+
+{% if draft.findings %}
+{% for finding in draft.findings %}
+- For **{{ finding.title }}**, review the linked evidence and remove or contain the affected exposure before closing the incident.
+{% endfor %}
+{% else %}
+- Review the observations and evidence to determine containment actions.
+{% endif %}
+
+## Remediation
+
+{% if draft.findings %}
+{% for finding in draft.findings %}
+### {{ finding.title }}
+
+{{ finding.remediation }}
+
+{% endfor %}
+{% else %}
+No remediation guidance was generated.
+{% endif %}
+
+## Evidence
+
+{% if observations %}
+{% for observation in observations %}
+### {{ observation.id }} - {{ observation.title }}
+
+{% if observation.evidence %}
+{% for excerpt in observation.evidence %}
+- Artifact: {{ excerpt.artifact_id }} | Location: {{ excerpt.location }} | Confidence: {{ excerpt.confidence }} | {{ excerpt.snippet }}
+{% endfor %}
+{% else %}
+- No evidence excerpts were preserved for this observation.
+{% endif %}
+
+{% endfor %}
+{% else %}
+No evidence excerpts were available.
+{% endif %}

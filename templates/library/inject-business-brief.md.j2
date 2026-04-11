@@ -1,0 +1,52 @@
+# {{ config.title }} Business Inject Brief
+
+**Team:** {{ config.client }}
+**Exercise:** {{ config.title }}
+**Classification:** {{ config.classification }}
+**Environment:** {{ config.environment }}
+
+## Executive Scenario Overview
+
+{% if draft.scenario_summary %}
+{{ draft.scenario_summary }}
+{% else %}
+No scenario summary was generated. Review the inject items below.
+{% endif %}
+
+## Leadership Talking Points
+
+- Use this brief for business leaders, executives, and crisis-management stakeholders.
+- Focus on decision pressure, business disruption, communications, and leadership actions.
+- Validate stakeholder decisions against the evidence-linked inject cards that follow.
+
+## Inject Cards
+
+{% if draft.items %}
+{% for item in draft.items %}
+### Inject {{ forloop.counter }}: {{ item.title }}
+
+**Inject ID:** {{ item.id }}
+**Audience:** {{ item.audience }}
+**Channel:** {{ item.channel }}
+**Trigger:** {{ item.trigger }}
+**Expected Action:** {{ item.expected_action }}
+
+{{ item.body }}
+
+**Evidence References:** {{ item.evidence_refs|join:", " }}
+**Observation Links:** {{ item.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No inject items were generated.
+{% endif %}
+
+## Facilitator Notes
+
+{% if observations %}
+{% for observation in observations %}
+- {{ observation.title }} | {{ observation.detail }}
+{% endfor %}
+{% else %}
+- No supporting observations were available.
+{% endif %}

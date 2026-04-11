@@ -17,15 +17,15 @@ It gives you:
 
 It is designed for blue teams, assessment teams, and exercise planners who want a fast first draft without sending data to a cloud service.
 
-## Alpha Status
+## V1 Status
 
-This project is currently an **alpha**.
+This project is currently a **v1 release candidate**.
 
 That means:
 - the core workflow works
 - local builds and tests are passing
 - the tool is usable today
-- the interface and behavior may still change
+- the interface should now be mostly stable
 - you should treat outputs as analyst-reviewed drafts, not final truth
 
 ## What It Does
@@ -51,6 +51,159 @@ To use the application, you need:
 - optionally `tesseract` if you want OCR from screenshots
 
 You do **not** need Go installed on the target machine if you are running a released binary.
+
+## Install Dependencies
+
+This project depends on two external local tools:
+
+- `Ollama` for local AI inference
+- `Tesseract` for OCR from screenshots and images
+
+If `Ollama` is missing, the run will fail.
+If `Tesseract` is missing, image OCR will be reduced or unavailable depending on the artifact and model path.
+
+### Install Ollama
+
+Official download:
+
+- [Ollama Download](https://ollama.com/download)
+
+#### Windows
+
+1. Open the Ollama download page.
+2. Download the Windows installer.
+3. Run the installer.
+4. After install, start Ollama from the Start menu or let the installer start it automatically.
+5. Open a new PowerShell window and verify the CLI is available:
+
+```powershell
+ollama --version
+```
+
+6. Verify the local service responds:
+
+```powershell
+ollama list
+```
+
+If Ollama is running correctly, `ollama list` should return a model table or an empty list instead of a connection failure.
+
+#### macOS
+
+1. Download the macOS installer from the Ollama download page.
+2. Install and launch Ollama.
+3. Verify:
+
+```bash
+ollama --version
+ollama list
+```
+
+#### Linux
+
+Use the install instructions from the Ollama download page, then verify:
+
+```bash
+ollama --version
+ollama list
+```
+
+### Pull the Required Gemma 4 Models
+
+After Ollama is installed and running, pull the models used by `injectctl`:
+
+```powershell
+ollama pull gemma4:26b
+ollama pull gemma4:e4b
+ollama pull gemma4:31b
+```
+
+Verify they are present:
+
+```powershell
+ollama list
+```
+
+You should see:
+
+- `gemma4:26b`
+- `gemma4:e4b`
+- `gemma4:31b`
+
+### Install Tesseract
+
+Official installation reference:
+
+- [Tesseract Installation Guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+
+For Windows, the Tesseract project documentation currently points users to the UB Mannheim Windows installers:
+
+- [Tesseract at UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+
+#### Windows
+
+1. Open the UB Mannheim Tesseract page.
+2. Download the current Windows installer.
+3. Run the installer.
+4. Install to the default path unless you have a reason to change it:
+
+```text
+C:\Program Files\Tesseract-OCR
+```
+
+5. Make sure that folder is in your `PATH`.
+
+To check from PowerShell:
+
+```powershell
+tesseract --version
+```
+
+If PowerShell says `tesseract` is not recognized, add this directory to your user or system `PATH` and open a new shell:
+
+```text
+C:\Program Files\Tesseract-OCR
+```
+
+#### macOS
+
+The Tesseract installation guide documents Homebrew and MacPorts. Homebrew is usually simplest:
+
+```bash
+brew install tesseract
+tesseract --version
+```
+
+#### Linux
+
+The Tesseract installation guide documents package-manager installation by distribution. On Ubuntu:
+
+```bash
+sudo apt install tesseract-ocr
+tesseract --version
+```
+
+### Final Verification
+
+Once Ollama and Tesseract are installed, verify the full local environment:
+
+```powershell
+injectctl doctor
+```
+
+For a stronger validation, run a live smoke test against your configured model:
+
+```powershell
+injectctl doctor --profile balanced --smoke
+```
+
+You want to see:
+
+- Ollama reachable
+- expected model profile resolved
+- installed models listed
+- smoke test passed
+- OCR available
 
 ## Quick Start
 
@@ -141,15 +294,19 @@ Inject:
 injectctl inject run --manifest .\job.yaml --input .\artifacts --out .\out
 ```
 
+After a successful run, `injectctl` now prints a short completion summary with the status, output directory, project snapshot directory, AI model usage, and generated file names.
+
 ### 6. Review the Output
 
 You will usually get:
 
-- `assessment.md` or `inject.md`
-- `assessment.json` or `inject.json`
-- `assessment.pdf` or `inject.pdf`
-- `evidence-index.md`
-- `evidence-index.json`
+- `assessment-report-draft.md` or `inject-pack-draft.md`
+- `assessment-report-data.json` or `inject-pack-data.json`
+- `assessment-report-review.pdf` or `inject-pack-review.pdf`
+- `assessment-evidence-index.md` or `inject-evidence-index.md`
+- `assessment-evidence-index.json` or `inject-evidence-index.json`
+
+The default Markdown and JSON outputs now also record the AI models actually used during the run, plus batch counts when oversized evidence had to be split across multiple synthesis passes.
 
 If generation fails, the tool now produces an **evidence-only** result with an explicit error report instead of pretending a polished draft was created.
 
@@ -165,7 +322,8 @@ environment: Production
 classification: TLP:AMBER
 instructions: >
   Turn the supplied screenshots, scan outputs, and notes into a draft corporate assessment report.
-template: ./templates/default/assessment.md.tmpl
+# template: ./templates/default/assessment.md.j2
+# template_dir: ./templates/library
 artifacts:
   - ./artifacts
 ai:
@@ -217,6 +375,9 @@ More examples:
 
 - `template`
   Optional Markdown template file for the final Markdown output.
+
+- `template_dir`
+  Optional folder containing a collection of templates. If `template` is not set, `injectctl` will score the available templates and auto-select the best match for the current mode and instructions.
 
 - `artifacts`
   One or more files or folders containing the evidence.
@@ -278,7 +439,7 @@ The AI layer now works like this:
 2. It resolves an AI profile such as `balanced` or `quality` into primary and fallback models.
 3. It checks whether the primary model is installed.
 4. If the primary model is missing and the fallback model exists, it switches to the fallback automatically.
-5. Prompt input is trimmed to configurable artifact and observation limits so very large runs do not overload the prompt.
+5. Prompt input is still bounded by configurable artifact and observation limits, but oversized evidence sets are now split into multiple AI batches and consolidated into one final draft.
 6. Prompt system instructions come from embedded defaults unless you provide a custom `prompt_dir`.
 7. The model must return structured JSON.
 8. If the JSON is malformed, the tool retries once with a repair prompt.
@@ -355,24 +516,69 @@ Checks that a custom Markdown template can be parsed.
 Example:
 
 ```powershell
-injectctl template validate --template .\templates\custom-report.md.tmpl
+injectctl template validate --template .\templates\custom-report.md.j2
+```
+
+### `injectctl template list`
+
+Lists candidate templates from a directory in the order they would be considered.
+
+Example:
+
+```powershell
+injectctl template list --dir .\templates\library --mode assess
 ```
 
 ## Template Notes
 
-Templates use Go's standard text template syntax.
+Templates support Jinja-style Markdown templates.
+
+Legacy Go `text/template` files with extensions like `.tmpl` are still accepted for backward compatibility, but `.j2` or `.jinja` is the recommended v1 format.
 
 That means placeholders look like:
 
-```gotemplate
-{{ .Config.Title }}
-{{ .Draft.ExecutiveSummary }}
+```jinja
+{{ config.title }}
+{{ draft.executive_summary }}
+{% if draft.findings %}
+{{ draft.findings|length }} findings
+{% endif %}
 ```
 
 The built-in templates are here:
 
-- [templates/default/assessment.md.tmpl](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/default/assessment.md.tmpl)
-- [templates/default/inject.md.tmpl](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/default/inject.md.tmpl)
+- [templates/default/assessment.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/default/assessment.md.j2)
+- [templates/default/inject.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/default/inject.md.j2)
+
+The shipped template library is here:
+
+- [templates/library/assessment-ir-report.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/library/assessment-ir-report.md.j2)
+- [templates/library/inject-business-brief.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/library/inject-business-brief.md.j2)
+- [templates/library/inject-legal-memo.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/library/inject-legal-memo.md.j2)
+- [templates/library/inject-technical-worksheet.md.j2](/C:/Users/blis/Desktop/Projects/Blue%20Team/Inject%20Automation/templates/library/inject-technical-worksheet.md.j2)
+
+Selection rules:
+
+- if `template` is set, that file is used
+- if `template` is not set and `template_dir` is set, `injectctl` scores the directory contents and auto-selects the best match
+- if nothing in `template_dir` is compatible, the built-in default template is used
+
+You can keep converted or source material in the same broader `templates/` tree, but only text-based template files are selectable:
+
+- `.j2`
+- `.jinja`
+- `.jinja2`
+- `.tmpl`
+- `.tpl`
+- `.md`
+
+Direct `.docx` rendering is not supported. If you want to reuse Word templates, convert them first:
+
+```powershell
+python .\scripts\docx_to_markdown.py .\templates --out-dir .\templates\converted-docx
+```
+
+Those converted Markdown files are source material for building live templates. The ready-to-use shipped live templates are in `templates/library/`.
 
 Important:
 - custom templates affect Markdown output
@@ -424,6 +630,13 @@ If `output.project_dir` is set, the project folder now also keeps:
 - `evidence-index.json`
 - `evidence-index.md`
 - `run-summary.json`
+- `output-inventory.json`
+- `run-log.jsonl`
+- `outputs/` with copied Markdown, JSON, and PDF artifacts for that run
+
+`run-summary.json` includes the configured model, the actual models used, stage-level AI execution details, and the batch count for chunked synthesis runs.
+`output-inventory.json` records the generated output files, their paths, sizes, and timestamps.
+`run-log.jsonl` records structured lifecycle events for the run so you can audit what happened without reading console output.
 
 ## Safety and Review Expectations
 
@@ -441,6 +654,15 @@ You should always:
 
 Check that Ollama is running and listening on `http://127.0.0.1:11434`.
 
+Start by verifying the local CLI and service:
+
+```powershell
+ollama --version
+ollama list
+```
+
+If `ollama list` fails, launch Ollama first and then rerun `injectctl doctor`.
+
 ### `doctor` says model is missing
 
 Pull the model:
@@ -452,6 +674,18 @@ ollama pull gemma4:26b
 ### Screenshots are not extracting text
 
 Install `tesseract` so OCR can run locally.
+
+Verify it is available:
+
+```powershell
+tesseract --version
+```
+
+If the command is not found on Windows, add this to your `PATH` and open a new shell:
+
+```text
+C:\Program Files\Tesseract-OCR
+```
 
 ### Output says `evidence_only`
 
@@ -490,6 +724,7 @@ Artifacts are written under `dist/<version>/`.
 Current release targets:
 
 - `windows-amd64`
+- `windows-arm64`
 - `linux-amd64`
 - `linux-arm64`
 - `darwin-amd64`
@@ -504,7 +739,7 @@ GitHub Actions also builds and uploads per-platform artifacts for each run.
 
 ## Current Limitations
 
-- still alpha
+- still analyst-review-first, not autopublish
 - no live multi-user server mode
 - no embedded local model runtime
 - OCR depends on an external local install of `tesseract`

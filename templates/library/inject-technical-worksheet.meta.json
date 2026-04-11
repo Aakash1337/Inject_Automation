@@ -1,0 +1,7 @@
+{
+  "name": "Technical Inject Worksheet",
+  "description": "Operations-focused inject template for technical teams, responders, and engineering workflows.",
+  "mode": "inject",
+  "tags": ["inject", "technical", "operations", "engineering", "incident", "responder"],
+  "priority": 1
+}

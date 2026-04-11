@@ -1,0 +1,66 @@
+# {{ config.title }}
+
+**Client:** {{ config.client }}
+**Environment:** {{ config.environment }}
+**Classification:** {{ config.classification }}
+**Status:** {{ status }}
+{% if run.ai %}
+{% if run.ai.requested_model %}
+**AI Requested Model:** {{ run.ai.requested_model }}
+{% endif %}
+{% if run.ai.fallback_model %}
+**AI Fallback Model:** {{ run.ai.fallback_model }}
+{% endif %}
+{% if run.ai.models_used %}
+**AI Models Used:** {{ run.ai.models_used|join:", " }}
+{% endif %}
+{% if run.ai.batch_count %}
+**AI Batch Count:** {{ run.ai.batch_count }}
+{% endif %}
+{% if run.ai.stages %}
+**AI Stages:**
+{% for stage in run.ai.stages %}
+- {{ stage.name }}: {{ stage.model }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if error_report %}
+## Generation Error
+**Stage:** {{ error_report.stage }}
+**Message:** {{ error_report.message }}
+
+{% if error_report.recommendations %}
+### Recommendations
+{% for recommendation in error_report.recommendations %}
+- {{ recommendation }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+## Scenario Summary
+{{ draft.scenario_summary }}
+
+## Injects
+{% if draft.items %}
+{% for item in draft.items %}
+### {{ item.title }}
+**Audience:** {{ item.audience }}
+**Channel:** {{ item.channel }}
+**Trigger:** {{ item.trigger }}
+**Expected Action:** {{ item.expected_action }}
+
+{{ item.body }}
+
+**Evidence:** {{ item.evidence_refs|join:", " }}
+**Observations:** {{ item.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No injects were generated. Review the observations section.
+{% endif %}
+
+## Observations
+{% for observation in observations %}
+- {{ observation.id }} | {{ observation.title }} | {{ observation.detail }}
+{% endfor %}

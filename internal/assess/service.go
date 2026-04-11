@@ -15,9 +15,22 @@ func Build(ctx context.Context, client *ollama.Client, cfg core.Config, artifact
 		return nil, fmt.Errorf("ollama is not reachable at %s", cfg.AI.Endpoint)
 	}
 
-	draft, warnings, synthErr := client.SynthesizeAssessment(ctx, cfg, artifacts, observations)
+	draft, trace, warnings, synthErr := client.SynthesizeAssessment(ctx, cfg, artifacts, observations)
+	run.AI = &trace
+	warnings = append(warnings, stabilizeDraft(&draft, artifacts, observations)...)
 	run.Warnings = append(run.Warnings, warnings...)
 	if synthErr != nil {
+		if len(draft.Findings) > 0 {
+			run.Warnings = append(run.Warnings, "assessment synthesis returned unusable model output; emitted deterministic fallback draft")
+			return &core.AssessmentResult{
+				Run:          *run,
+				Status:       "draft_ready",
+				Config:       cfg,
+				Artifacts:    artifacts,
+				Observations: observations,
+				Draft:        draft,
+			}, nil
+		}
 		run.Errors = append(run.Errors, "assessment synthesis failed; evidence-only error report emitted")
 		return &core.AssessmentResult{
 			Run:          *run,

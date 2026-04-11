@@ -4,6 +4,26 @@
 **Environment:** {{ .Config.Environment }}
 **Classification:** {{ .Config.Classification }}
 **Status:** {{ .Status }}
+{{- if .Run.AI }}
+{{- if .Run.AI.RequestedModel }}
+**AI Requested Model:** {{ .Run.AI.RequestedModel }}
+{{- end }}
+{{- if .Run.AI.FallbackModel }}
+**AI Fallback Model:** {{ .Run.AI.FallbackModel }}
+{{- end }}
+{{- if .Run.AI.ModelsUsed }}
+**AI Models Used:** {{ join .Run.AI.ModelsUsed ", " }}
+{{- end }}
+{{- if .Run.AI.BatchCount }}
+**AI Batch Count:** {{ .Run.AI.BatchCount }}
+{{- end }}
+{{- if .Run.AI.Stages }}
+**AI Stages:**
+{{- range .Run.AI.Stages }}
+- {{ .Name }}: {{ .Model }}
+{{- end }}
+{{- end }}
+{{- end }}
 
 {{- if .ErrorReport }}
 ## Generation Error

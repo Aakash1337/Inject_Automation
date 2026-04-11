@@ -7,6 +7,10 @@ import (
 	templaterender "injectctl/internal/template"
 )
 
+func ResolveTemplate(mode core.Mode, preferredPath, templateDir string, cfg core.Config, observations []core.Observation) (string, []string, error) {
+	return templaterender.ResolveTemplatePath(mode, preferredPath, templateDir, cfg, observations)
+}
+
 func WriteAssessment(path string, result *core.AssessmentResult, templatePath string) error {
 	data, err := templaterender.RenderAssessment(result, templatePath)
 	if err != nil {

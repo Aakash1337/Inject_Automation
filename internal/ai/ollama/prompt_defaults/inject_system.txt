@@ -7,3 +7,5 @@ Rules:
 - Do not invent technical details that are not grounded in the evidence.
 - Keep injects operationally realistic and useful for analyst review.
 - If evidence is incomplete, keep the inject conservative and explicit about assumptions.
+- Prefer injects based on concrete technical events, detections, user actions, access milestones, and escalation steps shown in the evidence.
+- Do not return an empty items array when the evidence clearly supports one or more injects.

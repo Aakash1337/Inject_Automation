@@ -3,8 +3,10 @@ package normalize
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"regexp"
+	"fmt"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 
 	"injectctl/internal/core"
@@ -33,6 +35,53 @@ func Observations(in []core.Observation) []core.Observation {
 		out = append(out, observation)
 	}
 	return out
+}
+
+func ConflictWarnings(observations []core.Observation) []string {
+	type conflictGroup struct {
+		details    map[string]struct{}
+		severities map[string]struct{}
+		count      int
+	}
+
+	groups := map[string]*conflictGroup{}
+	for _, observation := range observations {
+		key := conflictKey(observation)
+		if key == "" {
+			continue
+		}
+		group := groups[key]
+		if group == nil {
+			group = &conflictGroup{
+				details:    map[string]struct{}{},
+				severities: map[string]struct{}{},
+			}
+			groups[key] = group
+		}
+		group.count++
+		group.details[normalizeText(observation.Detail)] = struct{}{}
+		if severity := normalizeText(observation.Severity); severity != "" {
+			group.severities[severity] = struct{}{}
+		}
+	}
+
+	var warnings []string
+	keys := make([]string, 0, len(groups))
+	for key, group := range groups {
+		if group.count < 2 {
+			continue
+		}
+		if len(group.details) < 2 && len(group.severities) < 2 {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		subject, title, category := parseConflictKey(key)
+		warnings = append(warnings, fmt.Sprintf("potentially conflicting observations detected for %s [%s/%s]", subject, category, title))
+	}
+	return warnings
 }
 
 func RedactString(in string, rules []string) string {
@@ -141,4 +190,62 @@ func redactValue(v reflect.Value, rules compiledRules) {
 func stableID(in string) string {
 	sum := sha1.Sum([]byte(in))
 	return hex.EncodeToString(sum[:])[:12]
+}
+
+func conflictKey(observation core.Observation) string {
+	title := normalizeText(observation.Title)
+	category := normalizeText(observation.Category)
+	subject := observationSubject(observation)
+	if title == "" || category == "" || subject == "" {
+		return ""
+	}
+	return subject + "|" + title + "|" + category
+}
+
+func parseConflictKey(key string) (subject, title, category string) {
+	parts := strings.SplitN(key, "|", 3)
+	if len(parts) != 3 {
+		return key, "", ""
+	}
+	return parts[0], parts[1], parts[2]
+}
+
+func observationSubject(observation core.Observation) string {
+	tokens := strings.Fields(strings.TrimSpace(observation.Detail))
+	host := normalizeText(observation.Source["host"])
+
+	if host != "" {
+		if len(tokens) == 0 {
+			return host
+		}
+		first := normalizeText(tokens[0])
+		switch {
+		case strings.HasPrefix(first, host+":"):
+			return first
+		case first == host && len(tokens) > 1 && looksPortToken(tokens[1]):
+			return host + " " + normalizeText(tokens[1])
+		default:
+			return host
+		}
+	}
+
+	if len(tokens) == 0 {
+		return ""
+	}
+	first := normalizeText(tokens[0])
+	if looksPortToken(first) || strings.Contains(first, ":") {
+		return first
+	}
+	if surface := normalizeText(observation.Source["surface"]); surface != "" {
+		return surface + " " + first
+	}
+	return ""
+}
+
+func looksPortToken(token string) bool {
+	return strings.Contains(token, "/") || strings.Contains(token, ":")
+}
+
+func normalizeText(in string) string {
+	return strings.ToLower(strings.TrimSpace(in))
 }

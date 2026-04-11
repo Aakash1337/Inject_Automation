@@ -1,0 +1,7 @@
+{
+  "name": "Business Inject Brief",
+  "description": "Executive-facing inject template focused on business decisions, leadership, and communications.",
+  "mode": "inject",
+  "tags": ["inject", "business", "executive", "leadership", "communications", "tabletop"],
+  "priority": 1
+}

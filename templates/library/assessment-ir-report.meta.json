@@ -1,0 +1,7 @@
+{
+  "name": "IR Report",
+  "description": "Incident-response style assessment report template with summary, vulnerability, impact, eradication, remediation, and evidence sections.",
+  "mode": "assess",
+  "tags": ["assessment", "incident", "report", "ir", "remediation", "evidence"],
+  "priority": 1
+}

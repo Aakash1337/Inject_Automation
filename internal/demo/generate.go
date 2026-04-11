@@ -266,7 +266,6 @@ func Generate(root string, mode core.Mode) error {
 	cfg.Client = "Example Corp"
 	cfg.Environment = "Production"
 	cfg.Artifacts = []string{"./artifacts"}
-	cfg.Template = "./templates/default/" + string(mode) + ".md.tmpl"
 	cfg.Output.ProjectDir = "./project"
 	switch mode {
 	case core.ModeAssess:

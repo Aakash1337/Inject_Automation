@@ -1,0 +1,63 @@
+# {{ config.title }}
+
+**Client:** {{ config.client }}
+**Environment:** {{ config.environment }}
+**Classification:** {{ config.classification }}
+**Status:** {{ status }}
+{% if run.ai %}
+{% if run.ai.requested_model %}
+**AI Requested Model:** {{ run.ai.requested_model }}
+{% endif %}
+{% if run.ai.fallback_model %}
+**AI Fallback Model:** {{ run.ai.fallback_model }}
+{% endif %}
+{% if run.ai.models_used %}
+**AI Models Used:** {{ run.ai.models_used|join:", " }}
+{% endif %}
+{% if run.ai.batch_count %}
+**AI Batch Count:** {{ run.ai.batch_count }}
+{% endif %}
+{% if run.ai.stages %}
+**AI Stages:**
+{% for stage in run.ai.stages %}
+- {{ stage.name }}: {{ stage.model }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if error_report %}
+## Generation Error
+**Stage:** {{ error_report.stage }}
+**Message:** {{ error_report.message }}
+
+{% if error_report.recommendations %}
+### Recommendations
+{% for recommendation in error_report.recommendations %}
+- {{ recommendation }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+## Executive Summary
+{{ draft.executive_summary }}
+
+## Findings
+{% if draft.findings %}
+{% for finding in draft.findings %}
+### {{ finding.title }} ({{ finding.severity }})
+{{ finding.description }}
+
+**Impact:** {{ finding.impact }}
+**Remediation:** {{ finding.remediation }}
+**Evidence:** {{ finding.evidence_refs|join:", " }}
+**Observations:** {{ finding.observation_ids|join:", " }}
+
+{% endfor %}
+{% else %}
+No findings were generated. Review the observations section.
+{% endif %}
+
+## Observations
+{% for observation in observations %}
+- {{ observation.id }} | {{ observation.title }} | {{ observation.detail }}
+{% endfor %}
